@@ -13,6 +13,7 @@
             <a href="/" class="nav-brand">&#127860; <span>K</span>itchen<span>M</span>aster</a>
             <ul class="nav-links">
                 <li><a href="/" class="active">&#127968; <span>Inicio</span></a></li>
+                <li><a href="/shopping-list">&#128722; <span>Compras</span></a></li>
                 <li><a href="/ingredients">&#127838; <span>Ingredientes</span></a></li>
                 <li><a href="/recipes">&#128221; <span>Recetas</span></a></li>
             </ul>
@@ -23,7 +24,7 @@
         <div class="hero-content">
             <div class="hero-badge">&#127859; Control Total de tu Cocina</div>
             <h1>Gestiona tu <span>Inventario</span> y Recetas como un Chef Profesional</h1>
-            <p>Mantén el control de todos tus ingredientes, crea recetas increíbles y verifica al instante qué necesitas comprar para cocinar. Todo en un solo lugar.</p>
+            <p>Mantén el control de todos tus ingredientes, crea recetas increíbles, genera tu lista de compras y verifica al instante qué necesitas para cocinar. Todo en un solo lugar.</p>
         </div>
     </section>
 
@@ -31,33 +32,42 @@
         <div class="stats-inner" id="statsContainer">
             <div class="stat-card">
                 <div class="stat-number" id="statIngredients">-</div>
-                <div class="stat-label">Ingredientes en Stock</div>
+                <div class="stat-label">&#127838; Ingredientes en Stock</div>
             </div>
             <div class="stat-card">
                 <div class="stat-number" id="statRecipes">-</div>
-                <div class="stat-label">Recetas Creadas</div>
+                <div class="stat-label">&#128221; Recetas Creadas</div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card" id="lowStockCard" style="cursor:pointer;" onclick="document.getElementById('lowStockAlert').scrollIntoView({behavior:'smooth'})">
                 <div class="stat-number" id="statLowStock">-</div>
-                <div class="stat-label">Stock Bajo</div>
+                <div class="stat-label">&#9888; Stock Bajo</div>
             </div>
         </div>
     </div>
 
     <div class="container">
+        <div id="lowStockAlert"></div>
+
         <div class="dashboard-grid">
             <a href="/ingredients" class="dashboard-card">
                 <div class="card-icon ingredients">&#127838;</div>
                 <h2>Inventario de Ingredientes</h2>
-                <p>Agrega, actualiza y elimina ingredientes. Controla cantidades, unidades de medida y costos por unidad.</p>
+                <p>Agrega, actualiza, busca y elimina ingredientes. Controla cantidades, unidades de medida y costos. Exporta tu inventario a CSV.</p>
                 <div class="card-arrow">Ir a Ingredientes &rarr;</div>
             </a>
 
             <a href="/recipes" class="dashboard-card">
                 <div class="card-icon recipes">&#128221;</div>
                 <h2>Gestión de Recetas</h2>
-                <p>Crea recetas con ingredientes de tu inventario, visualiza detalles y verifica disponibilidad al instante.</p>
+                <p>Crea, edita y elimina recetas con ingredientes de tu inventario. Verifica disponibilidad al instante y calcula costos.</p>
                 <div class="card-arrow">Ir a Recetas &rarr;</div>
+            </a>
+
+            <a href="/shopping-list" class="dashboard-card" style="border-left: 4px solid #e67e22;">
+                <div class="card-icon" style="background:linear-gradient(135deg,#fef9e7,#f5e6cc);">&#128722;</div>
+                <h2>Lista de Compras Global</h2>
+                <p>Genera automáticamente una lista de todos los ingredientes faltantes para preparar todas tus recetas. Imprime o copia la lista.</p>
+                <div class="card-arrow">Ir a Lista de Compras &rarr;</div>
             </a>
         </div>
 
@@ -78,6 +88,15 @@
                     <div>
                         <h2 style="margin-bottom:4px;">Nueva Receta</h2>
                         <p style="margin-bottom:0;">Crea una receta con tus ingredientes</p>
+                    </div>
+                </div>
+            </a>
+            <a href="/shopping-list" class="dashboard-card" style="border-left: 4px solid #27ae60;">
+                <div style="display:flex;align-items:center;gap:16px;margin-bottom:0;">
+                    <span style="font-size:2em;">&#128722;</span>
+                    <div>
+                        <h2 style="margin-bottom:4px;">Ver Lista de Compras</h2>
+                        <p style="margin-bottom:0;">Qué necesitas comprar hoy</p>
                     </div>
                 </div>
             </a>
@@ -105,32 +124,66 @@
                 const ingredients = await ingsRes.json();
                 const recipes = await recsRes.json();
 
+                const lowStockItems = ingredients.filter(i => i.count <= 0 || i.count < 5);
                 document.getElementById('statIngredients').textContent = ingredients.length;
                 document.getElementById('statRecipes').textContent = recipes.length;
-                document.getElementById('statLowStock').textContent = ingredients.filter(i => i.count <= 0 || i.count < 5).length;
+                document.getElementById('statLowStock').textContent = lowStockItems.length;
 
+                // Low stock alert
+                const alertDiv = document.getElementById('lowStockAlert');
+                if (lowStockItems.length > 0) {
+                    let alertHtml = `<div style="background:linear-gradient(135deg,#fef9e7,#fdf2d5);border:2px solid #e67e22;border-radius:var(--radius);padding:20px;margin-bottom:20px;">
+                        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                            <span style="font-size:2em;">&#9888;</span>
+                            <div style="flex:1;">
+                                <h3 style="font-family:'Playfair Display',serif;color:#e67e22;margin:0;">Stock Bajo</h3>
+                                <p style="margin:4px 0 0;font-size:0.9em;">${lowStockItems.length} ingrediente${lowStockItems.length !== 1 ? 's' : ''} necesita${lowStockItems.length !== 1 ? 'n' : ''} reposición</p>
+                            </div>
+                            <a href="/ingredients" class="btn" style="background:linear-gradient(135deg,#e67e22,#d35400);text-decoration:none;">Revisar inventario</a>
+                        </div>
+                        <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;">`;
+                    lowStockItems.forEach(ing => {
+                        alertHtml += `<span style="background:white;padding:4px 12px;border-radius:50px;font-size:0.85em;border:1px solid #f5e6cc;">
+                            ${ing.name} (${ing.count} ${ing.measure})
+                        </span>`;
+                    });
+                    alertHtml += '</div></div>';
+                    alertDiv.innerHTML = alertHtml;
+                }
+
+                // Inventory preview
                 const preview = document.getElementById('inventoryPreview');
                 if (!ingredients.length) {
-                    preview.innerHTML = '<p style="text-align:center;color:var(--text-light);padding:20px;">No hay ingredientes en tu despensa. &#128522;<br><a href="/ingredients" style="color:var(--primary);font-weight:600;">¡Agrega tu primer ingrediente!</a></p>';
+                    preview.innerHTML = '<p style="text-align:center;color:var(--text-light);padding:20px;">&#128522; No hay ingredientes en tu despensa.<br><a href="/ingredients" style="color:var(--primary);font-weight:600;">¡Agrega tu primer ingrediente!</a></p>';
                     return;
                 }
 
-                let html = '<div class="table-wrapper"><table><thead><tr><th>Ingrediente</th><th>Unidad</th><th>Stock</th><th>Costo</th></tr></thead><tbody>';
+                const maxCount = Math.max(...ingredients.map(i => i.count), 1);
+                let html = '<div class="table-wrapper"><table><thead><tr><th>Ingrediente</th><th>Stock</th><th>Costo</th></tr></thead><tbody>';
                 ingredients.slice(0, 8).forEach(ing => {
                     const low = ing.count <= 0 || ing.count < 5;
+                    const pct = Math.min((ing.count / maxCount) * 100, 100);
+                    const barColor = ing.count <= 0 ? '#e74c3c' : (ing.count < 5 ? '#e67e22' : '#27ae60');
                     html += `<tr${low ? ' style="background:#fef9e7;"' : ''}>
                         <td><strong>${ing.name}</strong>${low ? ' &#9888;' : ''}</td>
-                        <td>${ing.measure}</td>
-                        <td>${ing.count}</td>
+                        <td>
+                            <div style="display:flex;align-items:center;gap:6px;">
+                                <div style="flex:1;max-width:100px;height:6px;background:#eee;border-radius:3px;">
+                                    <div style="height:100%;width:${pct}%;background:${barColor};border-radius:3px;transition:width 0.5s;"></div>
+                                </div>
+                                ${ing.count} ${ing.measure}
+                            </div>
+                        </td>
                         <td>$${parseFloat(ing.cost).toFixed(2)}</td>
                     </tr>`;
                 });
                 if (ingredients.length > 8) {
-                    html += `<tr><td colspan="4" style="text-align:center;color:var(--text-light);">... y ${ingredients.length - 8} ingredientes más</td></tr>`;
+                    html += `<tr><td colspan="3" style="text-align:center;color:var(--text-light);font-style:italic;">... y ${ingredients.length - 8} ingredientes más</td></tr>`;
                 }
                 html += '</tbody></table></div>';
                 html += `<p style="margin-top:12px;text-align:right;"><a href="/ingredients" style="color:var(--primary);font-weight:600;">Ver inventario completo &rarr;</a></p>`;
                 preview.innerHTML = html;
+
             } catch (e) {
                 document.getElementById('statIngredients').textContent = '?';
                 document.getElementById('statRecipes').textContent = '?';

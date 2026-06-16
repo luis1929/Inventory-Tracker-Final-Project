@@ -63,6 +63,11 @@ def recipes_page():
     return render_template('recipes.html')
 
 
+@app.route('/shopping-list')
+def shopping_list_page():
+    return render_template('shopping_list.html')
+
+
 @app.route('/api/ingredients', methods=['GET'])
 def get_ingredients():
     r = api_req('GET', T_INGS)
@@ -202,3 +207,83 @@ def check_recipe(recipe_id):
         'shopping_list': shoppingList,
         'all_available': allAvailable,
     })
+
+
+@app.route('/api/shopping-list', methods=['GET'])
+def global_shopping_list():
+    r = api_req('GET', T_RECIPES)
+    recipes = r.json() if r.status_code == 200 else []
+    allMissing = {}
+
+    for recipe in recipes:
+        rid = recipe['recipe_id']
+        r2 = api_req('GET', T_RECIPE_INGS,
+                     params={'recipe_id': 'eq.' + str(rid),
+                             'select': 'ingredient_name,quantity_needed,measure,ingredient_table(count,cost)'})
+        for item in r2.json():
+            name = item['ingredient_name']
+            needed = item['quantity_needed']
+            measure = item['measure']
+            stock = item['ingredient_table']['count']
+            cost = item['ingredient_table']['cost']
+            missing = max(0.0, needed - stock)
+
+            if missing > 0:
+                if name not in allMissing:
+                    allMissing[name] = {'qty': 0, 'measure': measure, 'cost': cost}
+                allMissing[name]['qty'] += missing
+
+    shoppingList = [{'name': k, 'qty': round(v['qty'], 2), 'measure': v['measure'], 'cost': v['cost']}
+                    for k, v in allMissing.items()]
+    totalCost = sum(s['qty'] * s['cost'] for s in shoppingList)
+    return jsonify({'shopping_list': shoppingList, 'total_cost': round(totalCost, 2)})
+
+
+@app.route('/api/recipes/<int:recipe_id>', methods=['PUT'])
+def update_recipe(recipe_id):
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Datos requeridos'}), 400
+
+    if 'recipe_name' in data or 'instructions' in data:
+        updateData = {}
+        if 'recipe_name' in data:
+            updateData['recipe_name'] = data['recipe_name']
+        if 'instructions' in data:
+            updateData['instructions'] = data['instructions']
+        r = api_req('PATCH', T_RECIPES, data=updateData,
+                    params={'recipe_id': 'eq.' + str(recipe_id)})
+        if r.status_code not in (200, 204):
+            return jsonify({'error': r.text}), r.status_code
+
+    if 'ingredients' in data:
+        api_req('DELETE', T_RECIPE_INGS, params={'recipe_id': 'eq.' + str(recipe_id)})
+        for ing in data['ingredients']:
+            api_req('POST', T_RECIPE_INGS, data={
+                'recipe_id': recipe_id,
+                'ingredient_name': ing['ingredient_name'],
+                'quantity_needed': ing['quantity_needed'],
+                'measure': ing['measure'],
+            })
+
+    return jsonify({'message': 'Receta actualizada'})
+
+
+@app.route('/api/ingredients/export', methods=['GET'])
+def export_ingredients():
+    r = api_req('GET', T_INGS)
+    if r.status_code != 200:
+        return jsonify({'error': r.text}), r.status_code
+    data = r.json()
+    csv = 'Nombre,Unidad,Cantidad,Costo/Unidad,Valor Total\n'
+    for ing in data:
+        total = parseFloat(ing['count']) * parseFloat(ing['cost'])
+        csv += f"{ing['name']},{ing['measure']},{ing['count']},{ing['cost']},{total}\n"
+    return csv, 200, {'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename=inventario.csv'}
+
+
+def parseFloat(v):
+    try:
+        return float(v)
+    except:
+        return 0.0

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lista de Compras - KitchenMaster</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="nav-inner">
+            <a href="/" class="nav-brand">&#127860; <span>K</span>itchen<span>M</span>aster</a>
+            <ul class="nav-links">
+                <li><a href="/">&#127968; <span>Inicio</span></a></li>
+                <li><a href="/shopping-list" class="active">&#128722; <span>Compras</span></a></li>
+                <li><a href="/ingredients">&#127838; <span>Ingredientes</span></a></li>
+                <li><a href="/recipes">&#128221; <span>Recetas</span></a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <section class="hero" style="padding:40px 0;">
+        <div class="hero-content">
+            <div class="hero-badge">&#128722; Mercado</div>
+            <h1>Lista de <span>Compras</span></h1>
+            <p>Ingredientes que necesitas comprar para preparar todas tus recetas. Calculado automáticamente según tu inventario actual.</p>
+        </div>
+    </section>
+
+    <div class="container">
+        <a href="/" class="back-link">&larr; Volver al inicio</a>
+
+        <div class="content-card">
+            <div id="shoppingListContent">
+                <p class="loading">Calculando lista de compras...</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        Restaurant Inventory Tracker &mdash; Hecho con <span>&#10084;</span> para cocineros
+    </div>
+
+    <script>
+        async function loadShoppingList() {
+            try {
+                const res = await fetch('/api/shopping-list');
+                const data = await res.json();
+                const div = document.getElementById('shoppingListContent');
+
+                if (!data.shopping_list || data.shopping_list.length === 0) {
+                    div.innerHTML = `
+                        <div style="text-align:center;padding:60px 20px;">
+                            <div style="font-size:4em;margin-bottom:16px;">&#127881;</div>
+                            <h2 style="font-family:'Playfair Display',serif;color:var(--dark);margin-bottom:8px;">No necesitas comprar nada</h2>
+                            <p style="color:var(--text-light);">Tienes todos los ingredientes necesarios para tus recetas.</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                let html = `
+                    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-bottom:20px;gap:12px;">
+                        <h2 style="margin:0;border:none;padding:0;">&#128722; Artículos a comprar: <span style="color:var(--primary);">${data.shopping_list.length}</span></h2>
+                        <div style="font-size:1.3em;font-family:'Playfair Display',serif;">
+                            Total estimado: <span style="color:var(--primary);font-weight:700;">$${data.total_cost.toFixed(2)}</span>
+                        </div>
+                    </div>
+                    <div class="table-wrapper"><table>
+                        <thead><tr><th>#</th><th>Ingrediente</th><th>Cantidad</th><th>Costo Est.</th><th>Acción</th></tr></thead><tbody>`;
+
+                data.shopping_list.forEach((item, i) => {
+                    const itemCost = item.qty * item.cost;
+                    html += `<tr>
+                        <td>${i + 1}</td>
+                        <td><strong>${item.name}</strong></td>
+                        <td>${item.qty} ${item.measure}</td>
+                        <td>$${itemCost.toFixed(2)}</td>
+                        <td><button class="btn-secondary" style="font-size:0.85em;padding:4px 12px;" onclick="quickAdd('${item.name}', '${item.measure}')">&#10133; Agregar</button></td>
+                    </tr>`;
+                });
+
+                html += `</tbody></table></div>
+                    <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;">
+                        <button onclick="window.print()">&#128424; Imprimir lista</button>
+                        <button class="btn-secondary" onclick="copyList()">&#128203; Copiar lista</button>
+                    </div>
+                    <p style="margin-top:12px;color:var(--text-light);font-size:0.85em;">
+                        &#128161; Los costos son estimados basados en el costo por unidad de tu inventario.
+                    </p>`;
+
+                div.innerHTML = html;
+            } catch(e) {
+                document.getElementById('shoppingListContent').innerHTML = '<p class="message error">Error al cargar la lista de compras</p>';
+            }
+        }
+
+        function quickAdd(name, measure) {
+            window.location.href = '/ingredients?name=' + encodeURIComponent(name) + '&measure=' + encodeURIComponent(measure);
+        }
+
+        function copyList() {
+            const rows = document.querySelectorAll('#shoppingListContent table tbody tr');
+            let text = 'LISTA DE COMPRAS\n================\n\n';
+            rows.forEach(row => {
+                const cols = row.querySelectorAll('td');
+                if (cols.length >= 3) {
+                    text += cols[1].textContent.trim() + ' - ' + cols[2].textContent.trim() + '\n';
+                }
+            });
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Lista copiada al portapapeles');
+            });
+        }
+
+        loadShoppingList();
+    </script>
+</body>
+</html>

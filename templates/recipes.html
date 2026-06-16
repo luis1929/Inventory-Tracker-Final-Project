@@ -13,6 +13,7 @@
             <a href="/" class="nav-brand">&#127860; <span>K</span>itchen<span>M</span>aster</a>
             <ul class="nav-links">
                 <li><a href="/">&#127968; <span>Inicio</span></a></li>
+                <li><a href="/shopping-list">&#128722; <span>Compras</span></a></li>
                 <li><a href="/ingredients">&#127838; <span>Ingredientes</span></a></li>
                 <li><a href="/recipes" class="active">&#128221; <span>Recetas</span></a></li>
             </ul>
@@ -23,16 +24,17 @@
         <div class="hero-content">
             <div class="hero-badge">&#128221; Recetario</div>
             <h1>Gestión de <span>Recetas</span></h1>
-            <p>Crea recetas con los ingredientes de tu inventario, visualiza los detalles y verifica qué necesitas comprar.</p>
+            <p>Crea, edita y verifica tus recetas. Cada receta se compara automáticamente con tu inventario actual.</p>
         </div>
     </section>
 
     <div class="container">
         <a href="/" class="back-link">&larr; Volver al inicio</a>
 
-        <div class="content-card">
-            <h2>&#10133; Agregar Nueva Receta</h2>
+        <div class="content-card" id="formCard">
+            <h2 id="formTitle">&#10133; Agregar Nueva Receta</h2>
             <form id="recipeForm">
+                <input type="hidden" id="editRecipeId" value="">
                 <div class="form-row">
                     <input type="text" id="recipeName" placeholder="Nombre de la receta" required style="flex:1;">
                     <input type="text" id="recipeInstructions" placeholder="Instrucciones de cocina" style="flex:2;">
@@ -50,14 +52,18 @@
                 </div>
                 <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;">
                     <button type="button" class="btn-secondary" onclick="addIngredientRow()">&#10133; Agregar Ingrediente</button>
-                    <button type="submit">&#128190; Guardar Receta</button>
+                    <button type="submit" id="saveRecipeBtn">&#128190; Guardar Receta</button>
+                    <button type="button" class="delete-btn" id="cancelEditBtn" style="display:none;" onclick="cancelEdit()">&#10005; Cancelar</button>
                 </div>
             </form>
             <div id="formMessage" class="message"></div>
         </div>
 
         <div class="content-card">
-            <h2>&#128214; Todas las Recetas</h2>
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+                <h2 style="margin:0;border:none;padding:0;">&#128214; Todas las Recetas</h2>
+                <input type="text" id="searchRecipes" placeholder="&#128269; Buscar receta..." style="padding:8px 14px;border:2px solid var(--cream-dark);border-radius:var(--radius-sm);font-size:0.9em;max-width:250px;">
+            </div>
             <div id="recipesList">
                 <p class="loading">Cargando recetas</p>
             </div>
@@ -77,6 +83,7 @@
 
     <script>
         let allIngredients = [];
+        let allRecipes = [];
 
         async function loadIngredients() {
             const res = await fetch('/api/ingredients');
@@ -93,19 +100,20 @@
             sel.value = current;
         }
 
-        function addIngredientRow() {
+        function addIngredientRow(data) {
             const div = document.createElement('div');
             div.className = 'form-row ing-row';
             div.innerHTML = `
                 <select class="ing-select" required>
                     <option value="">Seleccionar ingrediente...</option>
                 </select>
-                <input type="number" step="0.01" class="ing-qty" placeholder="Cantidad" required>
-                <span class="ing-measure"></span>
+                <input type="number" step="0.01" class="ing-qty" placeholder="Cantidad" value="${data ? data.quantity_needed : ''}" required>
+                <span class="ing-measure">${data ? data.measure : ''}</span>
                 <button type="button" class="remove-ing" onclick="this.parentElement.remove()">&#10005;</button>
             `;
             document.getElementById('ingredientRows').appendChild(div);
             populateSelect(div.querySelector('.ing-select'));
+            if (data) div.querySelector('.ing-select').value = data.ingredient_name;
             div.querySelector('.ing-select').onchange = function() {
                 const opt = this.options[this.selectedIndex];
                 const measure = opt.dataset.measure || '';
@@ -115,11 +123,13 @@
 
         document.getElementById('recipeForm').onsubmit = async function(e) {
             e.preventDefault();
+            const editId = document.getElementById('editRecipeId').value;
             const name = document.getElementById('recipeName').value.trim();
             const instructions = document.getElementById('recipeInstructions').value.trim();
             const rows = document.querySelectorAll('.ing-row');
             const ingredients = [];
             let valid = true;
+
             rows.forEach(row => {
                 const sel = row.querySelector('.ing-select');
                 const qty = row.querySelector('.ing-qty');
@@ -134,46 +144,98 @@
                     valid = false;
                 }
             });
+
             if (!valid) return showMessage('Completa todos los campos del ingrediente', 'error');
             if (!ingredients.length) return showMessage('Agrega al menos un ingrediente', 'error');
 
-            const res = await fetch('/api/recipes', {
-                method: 'POST',
+            let url = '/api/recipes';
+            let method = 'POST';
+            if (editId) {
+                url = '/api/recipes/' + editId;
+                method = 'PUT';
+            }
+
+            const res = await fetch(url, {
+                method: method,
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({ recipe_name: name, instructions, ingredients }),
             });
             const result = await res.json();
             showMessage(result.error || result.message, res.ok ? 'success' : 'error');
             if (res.ok) {
-                this.reset();
-                document.getElementById('ingredientRows').innerHTML = '';
-                addIngredientRow();
+                cancelEdit();
                 loadRecipes();
             }
         };
 
+        function editRecipe(id) {
+            const recipe = allRecipes.find(r => r.recipe_id === id);
+            if (!recipe) return;
+
+            document.getElementById('editRecipeId').value = id;
+            document.getElementById('recipeName').value = recipe.recipe_name;
+            document.getElementById('recipeInstructions').value = recipe.instructions || '';
+            document.getElementById('formTitle').innerHTML = '&#9998; Editando: <span style="color:var(--primary);">' + recipe.recipe_name + '</span>';
+            document.getElementById('saveRecipeBtn').textContent = '&#128190; Actualizar Receta';
+            document.getElementById('cancelEditBtn').style.display = 'inline-block';
+
+            document.getElementById('ingredientRows').innerHTML = '';
+            (recipe.ingredients || []).forEach(ing => {
+                addIngredientRow({
+                    ingredient_name: ing.ingredient_name,
+                    quantity_needed: ing.quantity_needed,
+                    measure: ing.measure,
+                });
+            });
+            if (!recipe.ingredients || !recipe.ingredients.length) addIngredientRow();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function cancelEdit() {
+            document.getElementById('editRecipeId').value = '';
+            document.getElementById('recipeForm').reset();
+            document.getElementById('formTitle').innerHTML = '&#10133; Agregar Nueva Receta';
+            document.getElementById('saveRecipeBtn').textContent = '&#128190; Guardar Receta';
+            document.getElementById('cancelEditBtn').style.display = 'none';
+            document.getElementById('ingredientRows').innerHTML = '';
+            addIngredientRow();
+        }
+
         async function loadRecipes() {
             const res = await fetch('/api/recipes');
-            const recipes = await res.json();
+            allRecipes = await res.json();
+            renderRecipes();
+        }
+
+        function renderRecipes() {
+            const search = (document.getElementById('searchRecipes').value || '').toLowerCase();
             const div = document.getElementById('recipesList');
 
-            if (!recipes.length) {
-                div.innerHTML = '<p style="text-align:center;color:var(--text-light);padding:40px;">&#128522; No hay recetas todavía.<br><br><strong style="color:var(--primary);">¡Crea tu primera receta usando el formulario de arriba!</strong></p>';
+            const filtered = allRecipes.filter(r => r.recipe_name.toLowerCase().includes(search));
+
+            if (!filtered.length) {
+                div.innerHTML = '<p style="text-align:center;color:var(--text-light);padding:40px;">&#128270; ' +
+                    (allRecipes.length ? 'Ninguna receta coincide con tu búsqueda.' : 'No hay recetas todavía.<br><br><strong style="color:var(--primary);">¡Crea tu primera receta!</strong>') + '</p>';
                 return;
             }
 
             let html = '<div class="recipe-grid">';
-            for (const recipe of recipes) {
+            for (const recipe of filtered) {
+                const ingsCount = (recipe.ingredients || []).length;
                 html += `<div class="recipe-card">
                     <div class="recipe-header">
                         <h3>&#127858; ${recipe.recipe_name}</h3>
                         <div class="recipe-actions">
-                            <button class="btn-secondary" onclick="checkRecipe(${recipe.recipe_id})">&#128269; Verificar</button>
-                            <button class="delete-btn" onclick="deleteRecipe('${recipe.recipe_name}')">&#128465; Eliminar</button>
+                            <button class="btn-secondary" onclick="editRecipe(${recipe.recipe_id})" title="Editar">&#9998;</button>
+                            <button class="btn-secondary" onclick="checkRecipe(${recipe.recipe_id})">&#128269;</button>
+                            <button class="delete-btn" onclick="deleteRecipe('${recipe.recipe_name}')">&#128465;</button>
                         </div>
                     </div>
                     <p class="instructions">${recipe.instructions || '<em style="color:#aaa;">Sin instrucciones</em>'}</p>
-                    <h4>&#127838; Ingredientes:</h4>
+                    <div style="display:flex;gap:16px;font-size:0.85em;color:var(--text-light);margin-bottom:8px;">
+                        <span>&#127838; ${ingsCount} ingrediente${ingsCount !== 1 ? 's' : ''}</span>
+                    </div>
+                    <h4>Ingredientes:</h4>
                     <ul>`;
                 for (const ing of (recipe.ingredients || [])) {
                     html += `<li>${ing.quantity_needed} ${ing.measure} de ${ing.ingredient_name}</li>`;
@@ -183,6 +245,8 @@
             html += '</div>';
             div.innerHTML = html;
         }
+
+        document.getElementById('searchRecipes').addEventListener('input', renderRecipes);
 
         async function deleteRecipe(name) {
             if (!confirm('Eliminar "' + name + '"?')) return;
@@ -197,21 +261,40 @@
             const data = await res.json();
             if (data.error) return showMessage(data.error, 'error');
 
-            let html = `<h2>&#127858; ${data.recipe_name}</h2>
-                <p style="color:var(--text-light);margin-bottom:16px;">${data.instructions || ''}</p>
-
+            let html = `<div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                    <div>
+                        <h2 style="margin-bottom:4px;">&#127858; ${data.recipe_name}</h2>
+                        <p style="color:var(--text-light);margin-bottom:0;">${data.instructions || ''}</p>
+                    </div>
+                    <button class="btn-secondary" onclick="editRecipe(${id});closeCheck();" style="font-size:0.85em;">&#9998; Editar</button>
+                </div>
                 <h3>&#128202; Comparación de Inventario</h3>
                 <div class="table-wrapper"><table><thead><tr><th>Ingrediente</th><th>Necesario</th><th>Disponible</th><th>Faltante</th><th>Costo</th></tr></thead><tbody>`;
             for (const d of data.details) {
                 const missing = d.missing > 0 ? d.missing.toFixed(2) + ' ' + d.measure : '<span style="color:#27ae60;">&#10003; Completo</span>';
                 const rowClass = d.missing > 0 ? ' style="background:#fef9e7;"' : ' style="background:#d5f5e3;"';
-                html += `<tr${rowClass}><td>${d.name}</td><td>${d.needed} ${d.measure}</td><td>${d.have} ${d.measure}</td><td>${missing}</td><td>$${d.cost.toFixed(2)}</td></tr>`;
+                const barColor = d.missing > 0 ? '#e67e22' : '#27ae60';
+                const pct = Math.min((d.have / d.needed) * 100, 100);
+                html += `<tr${rowClass}>
+                    <td>${d.name}</td>
+                    <td>${d.needed} ${d.measure}</td>
+                    <td>
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <div style="flex:1;max-width:80px;height:6px;background:#eee;border-radius:3px;">
+                                <div style="height:100%;width:${pct}%;background:${barColor};border-radius:3px;"></div>
+                            </div>
+                            ${d.have} ${d.measure}
+                        </div>
+                    </td>
+                    <td>${missing}</td>
+                    <td>$${d.cost.toFixed(2)}</td>
+                </tr>`;
             }
             html += `</tbody></table></div>
-                <h3>&#128176; Costo Total: $${data.total_cost.toFixed(2)}</h3>`;
+                <h3>&#128176; Costo Total de la Receta: $${data.total_cost.toFixed(2)}</h3>`;
 
             if (data.all_available) {
-                html += '<p class="success">&#9989; Tienes todos los ingredientes necesarios para preparar esta receta</p>';
+                html += '<p class="success">&#9989; Tienes todos los ingredientes. ¡A cocinar!</p>';
             } else {
                 html += `<h3>&#128722; Lista de Compras</h3>
                 <div class="table-wrapper"><table><thead><tr><th>Ingrediente</th><th>Cantidad a Comprar</th><th>Costo Estimado</th></tr></thead><tbody>`;
@@ -221,6 +304,11 @@
                 html += `</tbody></table></div>
                 <h3 style="color:var(--primary);">Total a gastar: $${data.missing_cost.toFixed(2)}</h3>`;
             }
+
+            html += `<div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;">
+                <button onclick="closeCheck()">Cerrar</button>
+                <button class="btn-secondary" onclick="window.open('/api/recipes/${id}/check', '_blank')">Abrir en nueva pestaña</button>
+            </div>`;
 
             document.getElementById('checkResult').innerHTML = html;
             document.getElementById('checkModal').classList.remove('hidden');

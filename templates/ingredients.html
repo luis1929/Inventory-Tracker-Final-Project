@@ -13,6 +13,7 @@
             <a href="/" class="nav-brand">&#127860; <span>K</span>itchen<span>M</span>aster</a>
             <ul class="nav-links">
                 <li><a href="/">&#127968; <span>Inicio</span></a></li>
+                <li><a href="/shopping-list">&#128722; <span>Compras</span></a></li>
                 <li><a href="/ingredients" class="active">&#127838; <span>Ingredientes</span></a></li>
                 <li><a href="/recipes">&#128221; <span>Recetas</span></a></li>
             </ul>
@@ -23,7 +24,7 @@
         <div class="hero-content">
             <div class="hero-badge">&#127838; Despensa</div>
             <h1>Inventario de <span>Ingredientes</span></h1>
-            <p>Controla todo lo que tienes en tu cocina. Agrega, actualiza y elimina ingredientes con sus cantidades y costos.</p>
+            <p>Controla todo lo que tienes en tu cocina. Agrega, busca, actualiza y exporta tu inventario.</p>
         </div>
     </section>
 
@@ -45,7 +46,22 @@
         </div>
 
         <div class="content-card">
-            <h2>&#128202; Inventario Actual</h2>
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+                <h2 style="margin:0;border:none;padding:0;">&#128202; Inventario Actual</h2>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <a href="/api/ingredients/export" class="btn btn-secondary" style="text-decoration:none;font-size:0.85em;">&#128229; Exportar CSV</a>
+                </div>
+            </div>
+
+            <div class="form-row" style="margin-bottom:16px;">
+                <input type="text" id="searchInput" placeholder="&#128269; Buscar ingrediente..." style="flex:2;padding:10px 14px;border:2px solid var(--cream-dark);border-radius:var(--radius-sm);font-size:0.95em;">
+                <select id="filterLowStock" style="flex:0.5;padding:10px 14px;border:2px solid var(--cream-dark);border-radius:var(--radius-sm);font-size:0.95em;">
+                    <option value="all">Todos</option>
+                    <option value="low">Stock bajo</option>
+                    <option value="ok">Stock OK</option>
+                </select>
+            </div>
+
             <div id="inventory">
                 <p class="loading">Cargando inventario</p>
             </div>
@@ -57,38 +73,77 @@
     </div>
 
     <script>
+        let allData = [];
+
         async function loadInventory() {
             const res = await fetch('/api/ingredients');
-            const data = await res.json();
+            allData = await res.json();
+            renderInventory();
+        }
+
+        function renderInventory() {
+            const search = (document.getElementById('searchInput').value || '').toLowerCase();
+            const filter = document.getElementById('filterLowStock').value;
             const div = document.getElementById('inventory');
 
+            let data = allData.filter(ing => {
+                const matchSearch = ing.name.toLowerCase().includes(search);
+                if (filter === 'low') return matchSearch && (ing.count <= 0 || ing.count < 5);
+                if (filter === 'ok') return matchSearch && ing.count >= 5;
+                return matchSearch;
+            });
+
             if (!data.length) {
-                div.innerHTML = '<p style="text-align:center;color:var(--text-light);padding:40px;">&#128522; No hay ingredientes en tu despensa.<br><br><strong style="color:var(--primary);">¡Agrega tu primer ingrediente usando el formulario de arriba!</strong></p>';
+                div.innerHTML = '<p style="text-align:center;color:var(--text-light);padding:40px;">&#128270; No se encontraron ingredientes' +
+                    (allData.length ? ' con ese filtro.' : '.<br><br><strong style="color:var(--primary);">¡Agrega tu primer ingrediente usando el formulario!</strong>') + '</p>';
                 return;
             }
 
-            let html = '<div class="table-wrapper"><table><thead><tr><th>Nombre</th><th>Unidad</th><th>Cantidad</th><th>Costo / Unidad</th><th>Valor Total</th><th>Acción</th></tr></thead><tbody>';
-            for (const ing of data) {
+            const maxCount = Math.max(...data.map(i => i.count), 1);
+            let html = '<div class="table-wrapper"><table><thead><tr><th>Nombre</th><th>Unidad</th><th>Stock</th><th>Costo / Unidad</th><th>Valor Total</th><th>Acción</th></tr></thead><tbody>';
+
+            data.forEach(ing => {
                 const totalValue = parseFloat(ing.count) * parseFloat(ing.cost);
+                const pct = Math.min((ing.count / maxCount) * 100, 100);
                 const low = ing.count <= 0 || ing.count < 5;
-                html += `<tr${low ? ' style="background:#fef9e7;"' : ''}>
-                    <td><strong>${ing.name}</strong>${low ? ' <span title="Stock bajo">&#9888;</span>' : ''}</td>
+                const barColor = ing.count <= 0 ? '#e74c3c' : (ing.count < 5 ? '#e67e22' : '#27ae60');
+                const barBg = ing.count <= 0 ? '#fadbd8' : (ing.count < 5 ? '#fef9e7' : '#d5f5e3');
+
+                html += `<tr${low ? ' class="low-stock-row"' : ''}>
+                    <td><strong>${ing.name}</strong> ${low ? '<span title="Stock bajo">&#9888;</span>' : ''}</td>
                     <td>${ing.measure}</td>
-                    <td>${ing.count}</td>
+                    <td>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <div style="flex:1;max-width:120px;height:8px;background:${barBg};border-radius:4px;">
+                                <div style="height:100%;width:${pct}%;background:${barColor};border-radius:4px;transition:width 0.5s;"></div>
+                            </div>
+                            <span style="font-weight:600;font-size:0.9em;">${ing.count}</span>
+                        </div>
+                    </td>
                     <td>$${parseFloat(ing.cost).toFixed(2)}</td>
                     <td>$${totalValue.toFixed(2)}</td>
-                    <td><button class="delete-btn" onclick="deleteIngredient('${ing.name}')">&#128465; Eliminar</button></td>
+                    <td><button class="delete-btn" onclick="deleteIngredient('${ing.name}')">&#128465;</button></td>
                 </tr>`;
-            }
-            html += '</tbody></table></div>';
+            });
 
             const totalInv = data.reduce((sum, ing) => sum + parseFloat(ing.count) * parseFloat(ing.cost), 0);
-            html += `<div style="margin-top:16px;text-align:right;font-size:1.1em;">
-                <strong>Valor total del inventario:</strong> <span style="color:var(--primary);font-family:'Playfair Display',serif;font-size:1.3em;">$${totalInv.toFixed(2)}</span>
+            html += '</tbody></table></div>';
+            html += `<div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;">
+                <span style="color:var(--text-light);font-size:0.9em;">Mostrando ${data.length} de ${allData.length} ingredientes</span>
+                <span style="font-size:1.1em;"><strong>Valor total:</strong> <span style="color:var(--primary);font-family:'Playfair Display',serif;font-size:1.3em;">$${totalInv.toFixed(2)}</span></span>
             </div>`;
+
+            if (data.some(i => i.count <= 0 || i.count < 5)) {
+                html += `<div style="margin-top:12px;padding:10px 16px;background:#fef9e7;border-radius:var(--radius-sm);border-left:4px solid #e67e22;font-size:0.9em;">
+                    &#9888; <strong>Stock bajo:</strong> Los ingredientes en amarillo necesitan reposición.
+                </div>`;
+            }
 
             div.innerHTML = html;
         }
+
+        document.getElementById('searchInput').addEventListener('input', renderInventory);
+        document.getElementById('filterLowStock').addEventListener('change', renderInventory);
 
         async function deleteIngredient(name) {
             if (!confirm('Eliminar "' + name + '" del inventario?')) return;
@@ -124,6 +179,14 @@
             div.textContent = msg;
             div.className = 'message ' + type;
             setTimeout(() => div.textContent = '', 4000);
+        }
+
+        // Pre-fill from URL params (from shopping list quick-add)
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('name')) {
+            document.getElementById('ingName').value = params.get('name');
+            document.getElementById('ingMeasure').value = params.get('measure') || '';
+            document.getElementById('ingCount').focus();
         }
 
         loadInventory();
