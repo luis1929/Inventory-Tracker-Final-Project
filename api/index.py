@@ -68,6 +68,11 @@ def shopping_list_page():
     return render_template('shopping_list.html')
 
 
+@app.route('/analytics')
+def analytics_page():
+    return render_template('analytics.html')
+
+
 @app.route('/api/ingredients', methods=['GET'])
 def get_ingredients():
     r = api_req('GET', T_INGS)
@@ -280,6 +285,66 @@ def export_ingredients():
         total = parseFloat(ing['count']) * parseFloat(ing['cost'])
         csv += f"{ing['name']},{ing['measure']},{ing['count']},{ing['cost']},{total}\n"
     return csv, 200, {'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename=inventario.csv'}
+
+
+@app.route('/api/analytics', methods=['GET'])
+def analytics():
+    ings = api_req('GET', T_INGS)
+    ingredients = ings.json() if ings.status_code == 200 else []
+
+    value = 0.0
+    lowCount = 0
+    outCount = 0
+    okCount = 0
+    ingValues = []
+
+    for ing in ingredients:
+        c = parseFloat(ing['count'])
+        cost = parseFloat(ing['cost'])
+        total = c * cost
+        value += total
+        if c <= 0:
+            outCount += 1
+        elif c < 5:
+            lowCount += 1
+        else:
+            okCount += 1
+        ingValues.append({'name': ing['name'], 'value': round(total, 2),
+                          'count': c, 'measure': ing['measure']})
+
+    ingValues.sort(key=lambda x: x['value'], reverse=True)
+
+    recs = api_req('GET', T_RECIPES)
+    recipes = recs.json() if recs.status_code == 200 else []
+
+    recipeCosts = []
+    for recipe in recipes:
+        r2 = api_req('GET', T_RECIPE_INGS,
+                     params={'recipe_id': 'eq.' + str(recipe['recipe_id']),
+                             'select': 'ingredient_name,quantity_needed,measure,ingredient_table(count,cost)'})
+        items = r2.json()
+        costTotal = sum(item['quantity_needed'] * item['ingredient_table']['cost'] for item in items)
+        recipeCosts.append({
+            'recipe_id': recipe['recipe_id'],
+            'recipe_name': recipe['recipe_name'],
+            'cost': round(costTotal, 2),
+            'ingredient_count': len(items),
+        })
+
+    recipeCosts.sort(key=lambda x: x['cost'], reverse=True)
+
+    return jsonify({
+        'ingredient_count': len(ingredients),
+        'recipe_count': len(recipes),
+        'total_inventory_value': round(value, 2),
+        'health': {
+            'ok': okCount,
+            'low': lowCount,
+            'out': outCount,
+        },
+        'top_ingredients_by_value': ingValues[:10],
+        'recipe_costs': recipeCosts,
+    })
 
 
 def parseFloat(v):
