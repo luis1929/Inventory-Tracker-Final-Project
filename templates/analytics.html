@@ -81,6 +81,10 @@
                 <li><a href="/recipes">&#128221; <span>Recetas</span></a></li>
                 <li><a href="/analytics" class="active">&#128200; <span>Analítica</span></a></li>
             </ul>
+            <div class="nav-user">
+                <span class="user-email">{{ user.email }}</span>
+                <button class="logout-btn" onclick="logout()">Salir</button>
+            </div>
         </div>
     </nav>
 
@@ -338,6 +342,9 @@
             div.innerHTML = html;
         }
 
+        function logout() {
+            fetch('/api/auth/logout', { method: 'POST' }).then(() => window.location.href = '/login');
+        }
         loadAnalytics();
     </script>
 </body>

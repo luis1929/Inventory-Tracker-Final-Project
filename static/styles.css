@@ -92,6 +92,38 @@ body {
     background: rgba(212, 163, 83, 0.2);
 }
 
+.nav-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--cream-dark);
+    font-size: 0.85em;
+    border-left: 1px solid rgba(255,255,255,0.1);
+    padding-left: 16px;
+    margin-left: 8px;
+}
+.nav-user .user-email {
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.nav-user .logout-btn {
+    background: none;
+    border: 1px solid rgba(255,255,255,0.2);
+    color: var(--cream-dark);
+    padding: 4px 12px;
+    border-radius: 50px;
+    cursor: pointer;
+    font-size: 0.85em;
+    transition: all 0.3s;
+}
+.nav-user .logout-btn:hover {
+    background: rgba(192, 57, 43, 0.3);
+    border-color: var(--primary);
+    color: white;
+}
+
 /* Container */
 .container {
     max-width: 1200px;
@@ -621,6 +653,8 @@ tr:hover td { background: rgba(212, 163, 83, 0.05); }
     .hero h1 { font-size: 2em; }
     .nav-links a { padding: 8px 10px; font-size: 0.8em; }
     .nav-brand { font-size: 1.1em; }
+    .nav-user { font-size: 0.75em; padding-left: 8px; margin-left: 4px; }
+    .nav-user .user-email { max-width: 80px; }
     .stats-inner { grid-template-columns: 1fr; }
     .dashboard-grid { grid-template-columns: 1fr; }
     .form-row { flex-direction: column; }

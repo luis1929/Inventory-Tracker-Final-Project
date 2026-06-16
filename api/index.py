@@ -1,8 +1,12 @@
 import os
 import sys
+import json
+import uuid
 import requests
+from datetime import timedelta
+from functools import wraps
 from dotenv import load_dotenv
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, session, redirect
 
 load_dotenv()
 
@@ -10,9 +14,12 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 app = Flask(__name__,
             template_folder=os.path.join(BASE_DIR, 'templates'),
             static_folder=os.path.join(BASE_DIR, 'static'))
+app.secret_key = os.getenv('FLASK_SECRET', os.urandom(32).hex())
+app.permanent_session_lifetime = timedelta(days=7)
 
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_KEY')
+SUPABASE_ANON = os.getenv('SUPABASE_ANON_KEY')
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     print("ERROR: Configura SUPABASE_URL y SUPABASE_SERVICE_KEY en las variables de entorno", file=sys.stderr)
@@ -26,7 +33,7 @@ def get_api_config():
     url = os.getenv('SUPABASE_URL')
     key = os.getenv('SUPABASE_SERVICE_KEY')
     if not url or not key:
-        return None, None, 'Credenciales de Supabase no configuradas. Agrega SUPABASE_URL y SUPABASE_SERVICE_KEY en las variables de entorno de Vercel.'
+        return None, None, 'Credenciales de Supabase no configuradas'
     api_url = url.rstrip('/') + '/rest/v1'
     headers = {
         'apikey': key,
@@ -48,32 +55,163 @@ def api_req(method, table, data=None, params=None, extra_headers=None):
     return r
 
 
+def auth_req(method, path, data=None, token=None):
+    if not SUPABASE_URL:
+        return type('Response', (), {'status_code': 500, 'json': lambda: {'error': 'No configurado'}, 'text': ''})()
+    url = SUPABASE_URL.rstrip('/') + '/auth/v1/' + path.lstrip('/')
+    headers = {
+        'apikey': SUPABASE_ANON or '',
+        'Content-Type': 'application/json',
+    }
+    if token:
+        headers['Authorization'] = f'Bearer {token}'
+    r = requests.request(method, url, headers=headers, json=data)
+    return r
+
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'user' not in session:
+            return redirect('/login')
+        return f(*args, **kwargs)
+    return decorated
+
+
+def api_auth_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'user' not in session:
+            return jsonify({'error': 'No autorizado. Inicia sesión primero.'}), 401
+        return f(*args, **kwargs)
+    return decorated
+
+
+# ── Auth Routes ──
+
+@app.route('/login')
+def login_page():
+    if 'user' in session:
+        return redirect('/')
+    return render_template('login.html')
+
+
+@app.route('/register')
+def register_page():
+    if 'user' in session:
+        return redirect('/')
+    return render_template('register.html')
+
+
+@app.route('/api/auth/signup', methods=['POST'])
+def auth_signup():
+    data = request.get_json()
+    if not data or not data.get('email') or not data.get('password'):
+        return jsonify({'error': 'Email y contraseña requeridos'}), 400
+    if len(data['password']) < 6:
+        return jsonify({'error': 'La contraseña debe tener al menos 6 caracteres'}), 400
+
+    r = auth_req('POST', 'signup', data={
+        'email': data['email'],
+        'password': data['password'],
+    })
+    body = r.json()
+    if r.status_code not in (200, 201, 204):
+        return jsonify({'error': body.get('msg') or body.get('error_description') or body.get('message') or 'Error al registrar'}), r.status_code
+
+    if body.get('user') and body.get('access_token'):
+        session.permanent = True
+        session['user'] = {
+            'id': body['user']['id'],
+            'email': body['user']['email'],
+            'token': body['access_token'],
+        }
+        return jsonify({'message': 'Cuenta creada', 'user': {'email': body['user']['email']}})
+
+    return jsonify({'message': 'Revisa tu email para confirmar la cuenta. Por ahora, usa el modo demo.', 'confirmation_sent': True})
+
+
+@app.route('/api/auth/login', methods=['POST'])
+def auth_login():
+    data = request.get_json()
+    if not data or not data.get('email') or not data.get('password'):
+        return jsonify({'error': 'Email y contraseña requeridos'}), 400
+
+    r = auth_req('POST', 'token?grant_type=password', data={
+        'email': data['email'],
+        'password': data['password'],
+    })
+    body = r.json()
+    if r.status_code not in (200, 201):
+        return jsonify({'error': body.get('error_description') or body.get('msg') or body.get('message') or 'Credenciales inválidas'}), 401
+
+    session.permanent = True
+    session['user'] = {
+        'id': body['user']['id'],
+        'email': body['user']['email'],
+        'token': body['access_token'],
+    }
+    return jsonify({'message': 'Inicio de sesión exitoso', 'user': {'email': body['user']['email']}})
+
+
+@app.route('/api/auth/logout', methods=['POST'])
+def auth_logout():
+    token = None
+    if 'user' in session:
+        token = session['user'].get('token')
+    session.clear()
+    if token:
+        try:
+            auth_req('POST', 'logout', token=token)
+        except:
+            pass
+    return jsonify({'message': 'Sesión cerrada'})
+
+
+@app.route('/api/auth/me', methods=['GET'])
+def auth_me():
+    if 'user' not in session:
+        return jsonify({'user': None})
+    return jsonify({'user': {'email': session['user']['email'], 'id': session['user']['id']}})
+
+
+# ── Protected Pages ──
+
 @app.route('/')
 def index():
-    return render_template('index.html')
+    if 'user' in session:
+        return render_template('index.html', user=session['user'])
+    return render_template('landing.html')
 
 
 @app.route('/ingredients')
+@login_required
 def ingredients_page():
-    return render_template('ingredients.html')
+    return render_template('ingredients.html', user=session['user'])
 
 
 @app.route('/recipes')
+@login_required
 def recipes_page():
-    return render_template('recipes.html')
+    return render_template('recipes.html', user=session['user'])
 
 
 @app.route('/shopping-list')
+@login_required
 def shopping_list_page():
-    return render_template('shopping_list.html')
+    return render_template('shopping_list.html', user=session['user'])
 
 
 @app.route('/analytics')
+@login_required
 def analytics_page():
-    return render_template('analytics.html')
+    return render_template('analytics.html', user=session['user'])
 
+
+# ── Protected API ──
 
 @app.route('/api/ingredients', methods=['GET'])
+@api_auth_required
 def get_ingredients():
     r = api_req('GET', T_INGS)
     if r.status_code != 200:
@@ -82,6 +220,7 @@ def get_ingredients():
 
 
 @app.route('/api/ingredients', methods=['POST'])
+@api_auth_required
 def add_ingredient():
     data = request.get_json()
     if not data or not data.get('name'):
@@ -94,6 +233,7 @@ def add_ingredient():
 
 
 @app.route('/api/ingredients/<name>', methods=['DELETE'])
+@api_auth_required
 def delete_ingredient(name):
     r = api_req('DELETE', T_INGS, params={'name': 'eq.' + name},
                 extra_headers={'Prefer': 'return=representation'})
@@ -103,6 +243,7 @@ def delete_ingredient(name):
 
 
 @app.route('/api/recipes', methods=['GET'])
+@api_auth_required
 def get_recipes():
     r = api_req('GET', T_RECIPES)
     if r.status_code != 200:
@@ -117,6 +258,7 @@ def get_recipes():
 
 
 @app.route('/api/recipes', methods=['POST'])
+@api_auth_required
 def add_recipe():
     data = request.get_json()
     if not data or not data.get('recipe_name'):
@@ -146,6 +288,7 @@ def add_recipe():
 
 
 @app.route('/api/recipes/<name>', methods=['DELETE'])
+@api_auth_required
 def delete_recipe(name):
     r = api_req('DELETE', T_RECIPES, params={'recipe_name': 'eq.' + name},
                 extra_headers={'Prefer': 'return=representation'})
@@ -155,6 +298,7 @@ def delete_recipe(name):
 
 
 @app.route('/api/recipes/<int:recipe_id>/check', methods=['GET'])
+@api_auth_required
 def check_recipe(recipe_id):
     r = api_req('GET', T_RECIPES, params={'recipe_id': 'eq.' + str(recipe_id)})
     recipeData = r.json()
@@ -215,6 +359,7 @@ def check_recipe(recipe_id):
 
 
 @app.route('/api/shopping-list', methods=['GET'])
+@api_auth_required
 def global_shopping_list():
     r = api_req('GET', T_RECIPES)
     recipes = r.json() if r.status_code == 200 else []
@@ -245,6 +390,7 @@ def global_shopping_list():
 
 
 @app.route('/api/recipes/<int:recipe_id>', methods=['PUT'])
+@api_auth_required
 def update_recipe(recipe_id):
     data = request.get_json()
     if not data:
@@ -275,6 +421,7 @@ def update_recipe(recipe_id):
 
 
 @app.route('/api/ingredients/export', methods=['GET'])
+@api_auth_required
 def export_ingredients():
     r = api_req('GET', T_INGS)
     if r.status_code != 200:
@@ -288,6 +435,7 @@ def export_ingredients():
 
 
 @app.route('/api/analytics', methods=['GET'])
+@api_auth_required
 def analytics():
     ings = api_req('GET', T_INGS)
     ingredients = ings.json() if ings.status_code == 200 else []
@@ -345,6 +493,46 @@ def analytics():
         'top_ingredients_by_value': ingValues[:10],
         'recipe_costs': recipeCosts,
     })
+
+
+@app.route('/api/admin/migrate', methods=['POST'])
+@api_auth_required
+def run_migration():
+    user = session.get('user', {})
+    if not user.get('email'):
+        return jsonify({'error': 'No autenticado'}), 401
+
+    ref = SUPABASE_URL.rstrip('/').split('.')[0].split('//')[1] if SUPABASE_URL else ''
+    if not ref:
+        return jsonify({'error': 'URL de Supabase no configurada'}), 500
+
+    sql = '''
+    ALTER TABLE ingredient_table ADD COLUMN IF NOT EXISTS user_id UUID DEFAULT auth.uid();
+    ALTER TABLE recipe_table ADD COLUMN IF NOT EXISTS user_id UUID DEFAULT auth.uid();
+    ALTER TABLE recipe_ingredients_table ADD COLUMN IF NOT EXISTS user_id UUID DEFAULT auth.uid();
+    '''
+
+    # Try management API
+    try:
+        r = requests.post(
+            f'https://api.supabase.com/v1/projects/{ref}/database/query',
+            headers={
+                'Authorization': f'Bearer {SUPABASE_KEY}',
+                'Content-Type': 'application/json',
+            },
+            json={'query': sql}
+        )
+        if r.status_code < 400:
+            return jsonify({'message': 'Migración ejecutada. Columnas user_id agregadas.', 'success': True})
+        error_detail = r.json().get('error', r.text[:200])
+    except Exception as e:
+        error_detail = str(e)
+
+    return jsonify({
+        'error': f'Migración automática falló: {error_detail}',
+        'manual_sql': sql,
+        'instructions': 'Ve al panel de Supabase > SQL Editor, pega y ejecuta el SQL de arriba.',
+    }), 400
 
 
 def parseFloat(v):

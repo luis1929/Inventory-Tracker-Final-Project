@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KitchenMaster - Controla tu Cocina</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <style>
+        .landing-hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--dark) 0%, #1a1a2e 50%, #16213e 100%);
+            color: white;
+            text-align: center;
+            padding: 40px 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        .landing-hero::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at 30% 50%, rgba(212, 163, 83, 0.08) 0%, transparent 50%),
+                        radial-gradient(circle at 70% 50%, rgba(192, 57, 43, 0.06) 0%, transparent 50%);
+            animation: float 20s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            33% { transform: translate(30px, -30px) rotate(1deg); }
+            66% { transform: translate(-20px, 20px) rotate(-1deg); }
+        }
+        .landing-content { position: relative; z-index: 1; max-width: 640px; }
+        .landing-hero .logo { font-size: 3em; margin-bottom: 8px; }
+        .landing-hero h1 { font-family: 'Playfair Display', serif; font-size: 2.8em; margin: 0 0 12px; line-height: 1.2; }
+        .landing-hero h1 span { color: var(--primary); }
+        .landing-hero p { font-size: 1.15em; color: rgba(255,255,255,0.75); margin-bottom: 32px; line-height: 1.6; }
+        .landing-buttons { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+        .landing-buttons .btn {
+            padding: 14px 36px;
+            font-size: 1.05em;
+            font-weight: 600;
+            border-radius: 50px;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+        .landing-buttons .btn-primary {
+            background: linear-gradient(135deg, var(--primary), #c0392b);
+            color: white;
+            box-shadow: 0 4px 20px rgba(192,57,43,0.3);
+        }
+        .landing-buttons .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(192,57,43,0.4);
+        }
+        .landing-buttons .btn-secondary {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            border: 2px solid rgba(255,255,255,0.2);
+        }
+        .landing-buttons .btn-secondary:hover {
+            background: rgba(255,255,255,0.2);
+            border-color: rgba(255,255,255,0.4);
+        }
+        .features-section {
+            padding: 80px 20px;
+            background: var(--cream-light);
+        }
+        .features-section h2 {
+            text-align: center;
+            font-family: 'Playfair Display', serif;
+            font-size: 2em;
+            margin-bottom: 48px;
+            color: var(--dark);
+        }
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 24px;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        .feature-card {
+            background: white;
+            padding: 28px;
+            border-radius: var(--radius);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+            text-align: center;
+            transition: transform 0.3s;
+        }
+        .feature-card:hover { transform: translateY(-4px); }
+        .feature-card .icon { font-size: 2.5em; margin-bottom: 12px; }
+        .feature-card h3 { font-family: 'Playfair Display', serif; margin: 0 0 8px; color: var(--dark); }
+        .feature-card p { color: var(--text-light); font-size: 0.9em; margin: 0; line-height: 1.5; }
+        .landing-footer {
+            text-align: center;
+            padding: 32px 20px;
+            background: var(--dark);
+            color: rgba(255,255,255,0.5);
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="landing-hero">
+        <div class="landing-content">
+            <div class="logo">&#127860;</div>
+            <h1><span>K</span>itchen<span>M</span>aster</h1>
+            <p>El sistema profesional de gestión de inventario y recetas para restaurantes. Controla tus ingredientes, crea recetas, genera listas de compras y analiza tus costos — todo en un solo lugar.</p>
+            <div class="landing-buttons">
+                <a href="/register" class="btn btn-primary">&#127919; Comenzar Gratis</a>
+                <a href="/login" class="btn btn-secondary">&#128274; Iniciar Sesión</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="features-section">
+        <h2>&#127860; Todo lo que necesitas para gestionar tu cocina</h2>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="icon">&#127838;</div>
+                <h3>Inventario Inteligente</h3>
+                <p>Controla cantidades, costos y unidades de cada ingrediente. Visualiza el stock con barras de progreso y recibe alertas de stock bajo.</p>
+            </div>
+            <div class="feature-card">
+                <div class="icon">&#128221;</div>
+                <h3>Recetario Digital</h3>
+                <p>Crea, edita y organiza tus recetas. Cada receta se compara automáticamente con tu inventario para saber si puedes cocinarla.</p>
+            </div>
+            <div class="feature-card">
+                <div class="icon">&#128722;</div>
+                <h3>Lista de Compras</h3>
+                <p>Genera automáticamente la lista de ingredientes que te faltan para preparar todas tus recetas. Con costos estimados incluidos.</p>
+            </div>
+            <div class="feature-card">
+                <div class="icon">&#128200;</div>
+                <h3>Analítica Profesional</h3>
+                <p>Visualiza la salud de tu inventario, el valor total de tu despensa y la rentabilidad de cada receta con gráficos interactivos.</p>
+            </div>
+            <div class="feature-card">
+                <div class="icon">&#128229;</div>
+                <h3>Exportación de Datos</h3>
+                <p>Exporta tu inventario a CSV para llevar tus registros a Excel o cualquier otra herramienta de gestión.</p>
+            </div>
+            <div class="feature-card">
+                <div class="icon">&#128274;</div>
+                <h3>Seguro y Privado</h3>
+                <p>Tus datos están protegidos con autenticación segura y almacenados en Supabase, una plataforma de base de datos empresarial.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="landing-footer">
+        Restaurant Inventory Tracker &mdash; Hecho con &#10084; para cocineros
+    </div>
+</body>
+</html>

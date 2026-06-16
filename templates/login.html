@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iniciar Sesión - KitchenMaster</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <style>
+        .auth-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--dark) 0%, #1a1a2e 100%);
+            padding: 20px;
+        }
+        .auth-card {
+            background: white;
+            border-radius: var(--radius);
+            padding: 40px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .auth-card h1 {
+            font-family: 'Playfair Display', serif;
+            text-align: center;
+            margin-bottom: 4px;
+        }
+        .auth-card .subtitle {
+            text-align: center;
+            color: var(--text-light);
+            margin-bottom: 24px;
+        }
+        .auth-card .brand {
+            text-align: center;
+            font-size: 1.2em;
+            margin-bottom: 20px;
+            color: var(--primary);
+            font-weight: 700;
+        }
+        .auth-card .brand span { color: var(--dark); }
+        .auth-card label {
+            display: block;
+            font-size: 0.9em;
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: var(--dark);
+        }
+        .auth-card input {
+            width: 100%;
+            padding: 12px 14px;
+            border: 2px solid var(--cream-dark);
+            border-radius: var(--radius-sm);
+            font-size: 1em;
+            margin-bottom: 16px;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+        .auth-card input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        .auth-card button {
+            width: 100%;
+            padding: 12px;
+            font-size: 1em;
+            font-weight: 600;
+            margin-top: 4px;
+        }
+        .auth-card .link {
+            text-align: center;
+            margin-top: 16px;
+            font-size: 0.9em;
+            color: var(--text-light);
+        }
+        .auth-card .link a {
+            color: var(--primary);
+            font-weight: 600;
+            text-decoration: none;
+        }
+        .auth-card .link a:hover { text-decoration: underline; }
+        .auth-card .message {
+            padding: 12px;
+            border-radius: var(--radius-sm);
+            margin-bottom: 16px;
+            font-size: 0.9em;
+            display: none;
+        }
+        .auth-card .message.error { display: block; background: #fadbd8; color: #922b21; }
+        .auth-card .message.success { display: block; background: #d5f5e3; color: #1a7a3a; }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-card">
+            <div class="brand">&#127860; <span>K</span>itchen<span>M</span>aster</div>
+            <h1>Bienvenido</h1>
+            <p class="subtitle">Inicia sesión para gestionar tu cocina</p>
+            <div id="message" class="message"></div>
+            <form id="loginForm">
+                <label for="email">Correo electrónico</label>
+                <input type="email" id="email" placeholder="chef@restaurante.com" required autocomplete="email">
+                <label for="password">Contraseña</label>
+                <input type="password" id="password" placeholder="••••••••" required autocomplete="current-password">
+                <button type="submit">&#128274; Iniciar Sesión</button>
+            </form>
+            <div class="link">
+                ¿No tienes cuenta? <a href="/register">Regístrate aquí</a>
+            </div>
+        </div>
+    </div>
+    <script>
+        document.getElementById('loginForm').onsubmit = async function(e) {
+            e.preventDefault();
+            const msg = document.getElementById('message');
+            msg.style.display = 'none';
+            const btn = this.querySelector('button');
+            btn.disabled = true;
+            btn.textContent = 'Ingresando...';
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({email: document.getElementById('email').value, password: document.getElementById('password').value}),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    msg.className = 'message success';
+                    msg.textContent = '¡Bienvenido!';
+                    msg.style.display = 'block';
+                    window.location.href = '/';
+                } else {
+                    msg.className = 'message error';
+                    msg.textContent = data.error || 'Error al iniciar sesión';
+                    msg.style.display = 'block';
+                }
+            } catch(e) {
+                msg.className = 'message error';
+                msg.textContent = 'Error de conexión';
+                msg.style.display = 'block';
+            }
+            btn.disabled = false;
+            btn.textContent = '&#128274; Iniciar Sesión';
+        };
+    </script>
+</body>
+</html>
