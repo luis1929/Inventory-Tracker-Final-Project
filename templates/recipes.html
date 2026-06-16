@@ -3,42 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Recipes - Inventory Tracker</title>
+    <title>Recetas - Inventory Tracker</title>
     <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
     <div class="container">
-        <h1>Recipes</h1>
-        <a href="/" class="back-link">&larr; Back to Dashboard</a>
+        <h1>Recetas</h1>
+        <a href="/" class="back-link">&larr; Volver al inicio</a>
 
         <div class="card">
-            <h2>Add New Recipe</h2>
+            <h2>Agregar Nueva Receta</h2>
             <form id="recipeForm">
                 <div class="form-row">
-                    <input type="text" id="recipeName" placeholder="Recipe name" required>
-                    <input type="text" id="recipeInstructions" placeholder="Instructions" style="flex:2">
+                    <input type="text" id="recipeName" placeholder="Nombre de la receta" required>
+                    <input type="text" id="recipeInstructions" placeholder="Instrucciones de cocina" style="flex:2">
                 </div>
-                <h3>Ingredients</h3>
+                <h3>Ingredientes</h3>
                 <div id="ingredientRows">
                     <div class="form-row ing-row">
                         <select class="ing-select" required>
-                            <option value="">Select ingredient...</option>
+                            <option value="">Seleccionar ingrediente...</option>
                         </select>
-                        <input type="number" step="0.01" class="ing-qty" placeholder="Quantity" required>
+                        <input type="number" step="0.01" class="ing-qty" placeholder="Cantidad" required>
                         <span class="ing-measure"></span>
                         <button type="button" class="remove-ing" onclick="this.parentElement.remove()">X</button>
                     </div>
                 </div>
-                <button type="button" onclick="addIngredientRow()">+ Add Ingredient</button>
-                <button type="submit">Save Recipe</button>
+                <button type="button" onclick="addIngredientRow()">+ Agregar Ingrediente</button>
+                <button type="submit">Guardar Receta</button>
             </form>
             <div id="formMessage" class="message"></div>
         </div>
 
         <div class="card">
-            <h2>All Recipes</h2>
+            <h2>Todas las Recetas</h2>
             <div id="recipesList">
-                <p>Loading...</p>
+                <p>Cargando...</p>
             </div>
         </div>
 
@@ -61,7 +61,7 @@
 
         function populateSelect(sel) {
             const current = sel.value;
-            sel.innerHTML = '<option value="">Select ingredient...</option>';
+            sel.innerHTML = '<option value="">Seleccionar ingrediente...</option>';
             allIngredients.forEach(ing => {
                 sel.innerHTML += `<option value="${ing.name}" data-measure="${ing.measure}">${ing.name} (${ing.measure})</option>`;
             });
@@ -73,9 +73,9 @@
             div.className = 'form-row ing-row';
             div.innerHTML = `
                 <select class="ing-select" required>
-                    <option value="">Select ingredient...</option>
+                    <option value="">Seleccionar ingrediente...</option>
                 </select>
-                <input type="number" step="0.01" class="ing-qty" placeholder="Quantity" required>
+                <input type="number" step="0.01" class="ing-qty" placeholder="Cantidad" required>
                 <span class="ing-measure"></span>
                 <button type="button" class="remove-ing" onclick="this.parentElement.remove()">X</button>
             `;
@@ -109,8 +109,8 @@
                     valid = false;
                 }
             });
-            if (!valid) return showMessage('Complete all ingredient fields', 'error');
-            if (!ingredients.length) return showMessage('Add at least one ingredient', 'error');
+            if (!valid) return showMessage('Completa todos los campos del ingrediente', 'error');
+            if (!ingredients.length) return showMessage('Agrega al menos un ingrediente', 'error');
 
             const res = await fetch('/api/recipes', {
                 method: 'POST',
@@ -133,7 +133,7 @@
             const div = document.getElementById('recipesList');
 
             if (!recipes.length) {
-                div.innerHTML = '<p>No recipes found.</p>';
+                div.innerHTML = '<p>No hay recetas.</p>';
                 return;
             }
 
@@ -143,15 +143,15 @@
                     <div class="recipe-header">
                         <h3>${recipe.recipe_name}</h3>
                         <div class="recipe-actions">
-                            <button onclick="checkRecipe(${recipe.recipe_id})">Check</button>
-                            <button class="delete-btn" onclick="deleteRecipe('${recipe.recipe_name}')">Delete</button>
+                            <button onclick="checkRecipe(${recipe.recipe_id})">Verificar</button>
+                            <button class="delete-btn" onclick="deleteRecipe('${recipe.recipe_name}')">Eliminar</button>
                         </div>
                     </div>
-                    <p class="instructions">${recipe.instructions || 'No instructions'}</p>
-                    <h4>Ingredients:</h4>
+                    <p class="instructions">${recipe.instructions || 'Sin instrucciones'}</p>
+                    <h4>Ingredientes:</h4>
                     <ul>`;
                 for (const ing of (recipe.ingredients || [])) {
-                    html += `<li>${ing.quantity_needed} ${ing.measure} of ${ing.ingredient_name}</li>`;
+                    html += `<li>${ing.quantity_needed} ${ing.measure} de ${ing.ingredient_name}</li>`;
                 }
                 html += `</ul></div>`;
             }
@@ -159,7 +159,7 @@
         }
 
         async function deleteRecipe(name) {
-            if (!confirm('Delete "' + name + '"?')) return;
+            if (!confirm('Eliminar "' + name + '"?')) return;
             const res = await fetch('/api/recipes/' + encodeURIComponent(name), { method: 'DELETE' });
             const data = await res.json();
             showMessage(data.error || data.message, res.ok ? 'success' : 'error');
@@ -173,23 +173,23 @@
 
             let html = `<h2>${data.recipe_name}</h2>
                 <p>${data.instructions || ''}</p>
-                <h3>Inventory Comparison</h3>
-                <table><thead><tr><th>Ingredient</th><th>Need</th><th>Have</th><th>Missing</th><th>Cost</th></tr></thead><tbody>`;
+                <h3>Comparación de Inventario</h3>
+                <table><thead><tr><th>Ingrediente</th><th>Necesario</th><th>Disponible</th><th>Faltante</th><th>Costo</th></tr></thead><tbody>`;
             for (const d of data.details) {
-                const missing = d.missing > 0 ? d.missing.toFixed(2) + ' ' + d.measure : 'None';
+                const missing = d.missing > 0 ? d.missing.toFixed(2) + ' ' + d.measure : 'Nada';
                 html += `<tr><td>${d.name}</td><td>${d.needed} ${d.measure}</td><td>${d.have} ${d.measure}</td><td>${missing}</td><td>$${d.cost.toFixed(2)}</td></tr>`;
             }
             html += `</tbody></table>
-                <h3>Recipe Cost: $${data.total_cost.toFixed(2)}</h3>`;
+                <h3>Costo de la Receta: $${data.total_cost.toFixed(2)}</h3>`;
 
             if (data.all_available) {
-                html += '<p class="success">You have all ingredients needed!</p>';
+                html += '<p class="success">Tienes todos los ingredientes necesarios</p>';
             } else {
-                html += '<h3>Shopping List</h3><table><thead><tr><th>Ingredient</th><th>Qty to Buy</th><th>Cost</th></tr></thead><tbody>';
+                html += '<h3>Lista de Compras</h3><table><thead><tr><th>Ingrediente</th><th>Cantidad a Comprar</th><th>Costo</th></tr></thead><tbody>';
                 for (const s of data.shopping_list) {
                     html += `<tr><td>${s.name}</td><td>${s.qty.toFixed(2)} ${s.measure}</td><td>$${s.cost.toFixed(2)}</td></tr>`;
                 }
-                html += `</tbody></table><h3>Total to spend: $${data.missing_cost.toFixed(2)}</h3>`;
+                html += `</tbody></table><h3>Total a gastar: $${data.missing_cost.toFixed(2)}</h3>`;
             }
 
             document.getElementById('checkResult').innerHTML = html;

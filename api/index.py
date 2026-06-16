@@ -15,7 +15,7 @@ SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_KEY')
 
 if not SUPABASE_URL or not SUPABASE_KEY:
-    print("ERROR: SUPABASE_URL and SUPABASE_SERVICE_KEY must be set", file=sys.stderr)
+    print("ERROR: Configura SUPABASE_URL y SUPABASE_SERVICE_KEY en las variables de entorno", file=sys.stderr)
 
 T_INGS = 'ingredient_table'
 T_RECIPES = 'recipe_table'
@@ -26,7 +26,7 @@ def get_api_config():
     url = os.getenv('SUPABASE_URL')
     key = os.getenv('SUPABASE_SERVICE_KEY')
     if not url or not key:
-        return None, None, 'Supabase credentials not configured. Set SUPABASE_URL and SUPABASE_SERVICE_KEY in Vercel env vars.'
+        return None, None, 'Credenciales de Supabase no configuradas. Agrega SUPABASE_URL y SUPABASE_SERVICE_KEY en las variables de entorno de Vercel.'
     api_url = url.rstrip('/') + '/rest/v1'
     headers = {
         'apikey': key,
@@ -75,12 +75,12 @@ def get_ingredients():
 def add_ingredient():
     data = request.get_json()
     if not data or not data.get('name'):
-        return jsonify({'error': 'Name is required'}), 400
+        return jsonify({'error': 'El nombre es obligatorio'}), 400
     r = api_req('POST', T_INGS, data=data,
                 extra_headers={'Prefer': 'resolution=merge-duplicates'})
     if r.status_code not in (200, 201, 204):
         return jsonify({'error': r.text}), r.status_code
-    return jsonify({'message': data['name'] + ' added/updated'})
+    return jsonify({'message': data['name'] + ' agregado/actualizado'})
 
 
 @app.route('/api/ingredients/<name>', methods=['DELETE'])
@@ -88,8 +88,8 @@ def delete_ingredient(name):
     r = api_req('DELETE', T_INGS, params={'name': 'eq.' + name},
                 extra_headers={'Prefer': 'return=representation'})
     if r.status_code == 200 and r.json():
-        return jsonify({'message': name + ' removed'})
-    return jsonify({'error': 'Not found'}), 404
+        return jsonify({'message': name + ' eliminado'})
+    return jsonify({'error': 'Ingrediente no encontrado'}), 404
 
 
 @app.route('/api/recipes', methods=['GET'])
@@ -110,14 +110,14 @@ def get_recipes():
 def add_recipe():
     data = request.get_json()
     if not data or not data.get('recipe_name'):
-        return jsonify({'error': 'Recipe name is required'}), 400
+        return jsonify({'error': 'El nombre de la receta es obligatorio'}), 400
 
     r = api_req('POST', T_RECIPES,
                 data={'recipe_name': data['recipe_name'],
                       'instructions': data.get('instructions', '')},
                 extra_headers={'Prefer': 'return=representation'})
     if r.status_code == 409:
-        return jsonify({'error': 'Recipe already exists'}), 409
+        return jsonify({'error': 'La receta ya existe'}), 409
     if r.status_code != 201:
         return jsonify({'error': r.text}), r.status_code
 
@@ -132,7 +132,7 @@ def add_recipe():
             'measure': ing['measure'],
         })
 
-    return jsonify({'message': 'Recipe added', 'recipe_id': recipeId})
+    return jsonify({'message': 'Receta agregada', 'recipe_id': recipeId})
 
 
 @app.route('/api/recipes/<name>', methods=['DELETE'])
@@ -140,8 +140,8 @@ def delete_recipe(name):
     r = api_req('DELETE', T_RECIPES, params={'recipe_name': 'eq.' + name},
                 extra_headers={'Prefer': 'return=representation'})
     if r.status_code == 200 and r.json():
-        return jsonify({'message': name + ' removed'})
-    return jsonify({'error': 'Not found'}), 404
+        return jsonify({'message': name + ' eliminada'})
+    return jsonify({'error': 'Receta no encontrada'}), 404
 
 
 @app.route('/api/recipes/<int:recipe_id>/check', methods=['GET'])
@@ -149,7 +149,7 @@ def check_recipe(recipe_id):
     r = api_req('GET', T_RECIPES, params={'recipe_id': 'eq.' + str(recipe_id)})
     recipeData = r.json()
     if not recipeData:
-        return jsonify({'error': 'Recipe not found'}), 404
+        return jsonify({'error': 'Receta no encontrada'}), 404
 
     recipe = recipeData[0]
     r2 = api_req('GET', T_RECIPE_INGS,

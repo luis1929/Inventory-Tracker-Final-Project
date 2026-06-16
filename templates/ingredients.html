@@ -3,32 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ingredients - Inventory Tracker</title>
+    <title>Ingredientes - Inventory Tracker</title>
     <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
     <div class="container">
-        <h1>Ingredients</h1>
-        <a href="/" class="back-link">&larr; Back to Dashboard</a>
+        <h1>Ingredientes</h1>
+        <a href="/" class="back-link">&larr; Volver al inicio</a>
 
         <div class="card">
-            <h2>Add / Update Ingredient</h2>
+            <h2>Agregar / Actualizar Ingrediente</h2>
             <form id="ingredientForm">
                 <div class="form-row">
-                    <input type="text" id="ingName" placeholder="Ingredient Name" required>
-                    <input type="text" id="ingMeasure" placeholder="Unit (lb, oz, qt, etc.)" required>
-                    <input type="number" step="0.01" id="ingCount" placeholder="Stock Count" required>
-                    <input type="number" step="0.01" id="ingCost" placeholder="Cost per unit" required>
-                    <button type="submit">Save</button>
+                    <input type="text" id="ingName" placeholder="Nombre del ingrediente" required>
+                    <input type="text" id="ingMeasure" placeholder="Unidad (lb, oz, l, kg, etc.)" required>
+                    <input type="number" step="0.01" id="ingCount" placeholder="Cantidad en stock" required>
+                    <input type="number" step="0.01" id="ingCost" placeholder="Costo por unidad" required>
+                    <button type="submit">Guardar</button>
                 </div>
             </form>
             <div id="formMessage" class="message"></div>
         </div>
 
         <div class="card">
-            <h2>Current Inventory</h2>
+            <h2>Inventario Actual</h2>
             <div id="inventory">
-                <p>Loading...</p>
+                <p>Cargando...</p>
             </div>
         </div>
     </div>
@@ -40,18 +40,18 @@
             const div = document.getElementById('inventory');
 
             if (!data.length) {
-                div.innerHTML = '<p>No ingredients found.</p>';
+                div.innerHTML = '<p>No hay ingredientes.</p>';
                 return;
             }
 
-            let html = '<table><thead><tr><th>Name</th><th>Measure</th><th>Count</th><th>Cost</th><th>Actions</th></tr></thead><tbody>';
+            let html = '<table><thead><tr><th>Nombre</th><th>Unidad</th><th>Cantidad</th><th>Costo</th><th>Acción</th></tr></thead><tbody>';
             for (const ing of data) {
                 html += `<tr>
                     <td>${ing.name}</td>
                     <td>${ing.measure}</td>
                     <td>${ing.count}</td>
                     <td>$${parseFloat(ing.cost).toFixed(2)}</td>
-                    <td><button class="delete-btn" onclick="deleteIngredient('${ing.name}')">Delete</button></td>
+                    <td><button class="delete-btn" onclick="deleteIngredient('${ing.name}')">Eliminar</button></td>
                 </tr>`;
             }
             html += '</tbody></table>';
@@ -59,7 +59,7 @@
         }
 
         async function deleteIngredient(name) {
-            if (!confirm('Delete "' + name + '"?')) return;
+            if (!confirm('Eliminar "' + name + '"?')) return;
             const res = await fetch('/api/ingredients/' + encodeURIComponent(name), { method: 'DELETE' });
             const data = await res.json();
             showMessage(data.error || data.message, res.ok ? 'success' : 'error');
