@@ -7,31 +7,96 @@
     <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-    <div class="container">
-        <h1>Restaurant Inventory Tracker</h1>
-        <p class="subtitle">Gestiona tu inventario de cocina y recetas</p>
 
-        <div class="dashboard-cards">
-            <a href="/ingredients" class="card">
-                <h2>Ingredientes</h2>
-                <p>Agrega, actualiza y elimina ingredientes de tu inventario</p>
-            </a>
-            <a href="/recipes" class="card">
-                <h2>Recetas</h2>
-                <p>Crea, revisa y verifica recetas contra tu stock</p>
-            </a>
+    <nav class="navbar">
+        <div class="nav-inner">
+            <a href="/" class="nav-brand">&#127860; <span>K</span>itchen<span>M</span>aster</a>
+            <ul class="nav-links">
+                <li><a href="/" class="active">&#127968; <span>Inicio</span></a></li>
+                <li><a href="/ingredients">&#127838; <span>Ingredientes</span></a></li>
+                <li><a href="/recipes">&#128221; <span>Recetas</span></a></li>
+            </ul>
         </div>
+    </nav>
 
-        <div class="card summary-card">
-            <h2>Resumen</h2>
-            <div id="summary">
-                <p>Cargando...</p>
+    <section class="hero">
+        <div class="hero-content">
+            <div class="hero-badge">&#127859; Control Total de tu Cocina</div>
+            <h1>Gestiona tu <span>Inventario</span> y Recetas como un Chef Profesional</h1>
+            <p>Mantén el control de todos tus ingredientes, crea recetas increíbles y verifica al instante qué necesitas comprar para cocinar. Todo en un solo lugar.</p>
+        </div>
+    </section>
+
+    <div class="stats-bar">
+        <div class="stats-inner" id="statsContainer">
+            <div class="stat-card">
+                <div class="stat-number" id="statIngredients">-</div>
+                <div class="stat-label">Ingredientes en Stock</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="statRecipes">-</div>
+                <div class="stat-label">Recetas Creadas</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="statLowStock">-</div>
+                <div class="stat-label">Stock Bajo</div>
             </div>
         </div>
     </div>
 
+    <div class="container">
+        <div class="dashboard-grid">
+            <a href="/ingredients" class="dashboard-card">
+                <div class="card-icon ingredients">&#127838;</div>
+                <h2>Inventario de Ingredientes</h2>
+                <p>Agrega, actualiza y elimina ingredientes. Controla cantidades, unidades de medida y costos por unidad.</p>
+                <div class="card-arrow">Ir a Ingredientes &rarr;</div>
+            </a>
+
+            <a href="/recipes" class="dashboard-card">
+                <div class="card-icon recipes">&#128221;</div>
+                <h2>Gestión de Recetas</h2>
+                <p>Crea recetas con ingredientes de tu inventario, visualiza detalles y verifica disponibilidad al instante.</p>
+                <div class="card-arrow">Ir a Recetas &rarr;</div>
+            </a>
+        </div>
+
+        <h2 class="section-title">&#128161; <span>Acciones</span> Rápidas</h2>
+        <div class="dashboard-grid">
+            <a href="/ingredients" class="dashboard-card" style="border-left: 4px solid #e74c3c;">
+                <div style="display:flex;align-items:center;gap:16px;margin-bottom:0;">
+                    <span style="font-size:2em;">&#10133;</span>
+                    <div>
+                        <h2 style="margin-bottom:4px;">Nuevo Ingrediente</h2>
+                        <p style="margin-bottom:0;">Agrega un ingrediente a tu despensa</p>
+                    </div>
+                </div>
+            </a>
+            <a href="/recipes" class="dashboard-card" style="border-left: 4px solid #d4a353;">
+                <div style="display:flex;align-items:center;gap:16px;margin-bottom:0;">
+                    <span style="font-size:2em;">&#10133;</span>
+                    <div>
+                        <h2 style="margin-bottom:4px;">Nueva Receta</h2>
+                        <p style="margin-bottom:0;">Crea una receta con tus ingredientes</p>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <h2 class="section-title">&#127860; <span>Tu</span> Despensa</h2>
+        <div class="content-card">
+            <div id="inventoryPreview">
+                <p class="loading">Cargando inventario</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        Restaurant Inventory Tracker &mdash; Hecho con <span>&#10084;</span> para cocineros
+    </div>
+
     <script>
-        async function loadSummary() {
+        async function loadDashboard() {
             try {
                 const [ingsRes, recsRes] = await Promise.all([
                     fetch('/api/ingredients'),
@@ -40,15 +105,39 @@
                 const ingredients = await ingsRes.json();
                 const recipes = await recsRes.json();
 
-                document.getElementById('summary').innerHTML = `
-                    <p><strong>${ingredients.length}</strong> ingredientes en stock</p>
-                    <p><strong>${recipes.length}</strong> recetas guardadas</p>
-                `;
+                document.getElementById('statIngredients').textContent = ingredients.length;
+                document.getElementById('statRecipes').textContent = recipes.length;
+                document.getElementById('statLowStock').textContent = ingredients.filter(i => i.count <= 0 || i.count < 5).length;
+
+                const preview = document.getElementById('inventoryPreview');
+                if (!ingredients.length) {
+                    preview.innerHTML = '<p style="text-align:center;color:var(--text-light);padding:20px;">No hay ingredientes en tu despensa. &#128522;<br><a href="/ingredients" style="color:var(--primary);font-weight:600;">¡Agrega tu primer ingrediente!</a></p>';
+                    return;
+                }
+
+                let html = '<div class="table-wrapper"><table><thead><tr><th>Ingrediente</th><th>Unidad</th><th>Stock</th><th>Costo</th></tr></thead><tbody>';
+                ingredients.slice(0, 8).forEach(ing => {
+                    const low = ing.count <= 0 || ing.count < 5;
+                    html += `<tr${low ? ' style="background:#fef9e7;"' : ''}>
+                        <td><strong>${ing.name}</strong>${low ? ' &#9888;' : ''}</td>
+                        <td>${ing.measure}</td>
+                        <td>${ing.count}</td>
+                        <td>$${parseFloat(ing.cost).toFixed(2)}</td>
+                    </tr>`;
+                });
+                if (ingredients.length > 8) {
+                    html += `<tr><td colspan="4" style="text-align:center;color:var(--text-light);">... y ${ingredients.length - 8} ingredientes más</td></tr>`;
+                }
+                html += '</tbody></table></div>';
+                html += `<p style="margin-top:12px;text-align:right;"><a href="/ingredients" style="color:var(--primary);font-weight:600;">Ver inventario completo &rarr;</a></p>`;
+                preview.innerHTML = html;
             } catch (e) {
-                document.getElementById('summary').innerHTML = '<p>Error al cargar datos</p>';
+                document.getElementById('statIngredients').textContent = '?';
+                document.getElementById('statRecipes').textContent = '?';
+                document.getElementById('statLowStock').textContent = '?';
             }
         }
-        loadSummary();
+        loadDashboard();
     </script>
 </body>
 </html>

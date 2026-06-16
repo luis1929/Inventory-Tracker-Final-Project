@@ -3,34 +3,57 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ingredientes - Inventory Tracker</title>
+    <title>Ingredientes - KitchenMaster</title>
     <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
+
+    <nav class="navbar">
+        <div class="nav-inner">
+            <a href="/" class="nav-brand">&#127860; <span>K</span>itchen<span>M</span>aster</a>
+            <ul class="nav-links">
+                <li><a href="/">&#127968; <span>Inicio</span></a></li>
+                <li><a href="/ingredients" class="active">&#127838; <span>Ingredientes</span></a></li>
+                <li><a href="/recipes">&#128221; <span>Recetas</span></a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <section class="hero" style="padding:40px 0;">
+        <div class="hero-content">
+            <div class="hero-badge">&#127838; Despensa</div>
+            <h1>Inventario de <span>Ingredientes</span></h1>
+            <p>Controla todo lo que tienes en tu cocina. Agrega, actualiza y elimina ingredientes con sus cantidades y costos.</p>
+        </div>
+    </section>
+
     <div class="container">
-        <h1>Ingredientes</h1>
         <a href="/" class="back-link">&larr; Volver al inicio</a>
 
-        <div class="card">
-            <h2>Agregar / Actualizar Ingrediente</h2>
+        <div class="content-card">
+            <h2>&#10133; Agregar / Actualizar Ingrediente</h2>
             <form id="ingredientForm">
                 <div class="form-row">
                     <input type="text" id="ingName" placeholder="Nombre del ingrediente" required>
                     <input type="text" id="ingMeasure" placeholder="Unidad (lb, oz, l, kg, etc.)" required>
                     <input type="number" step="0.01" id="ingCount" placeholder="Cantidad en stock" required>
-                    <input type="number" step="0.01" id="ingCost" placeholder="Costo por unidad" required>
-                    <button type="submit">Guardar</button>
+                    <input type="number" step="0.01" id="ingCost" placeholder="Costo por unidad ($)" required>
+                    <button type="submit">&#128190; Guardar</button>
                 </div>
             </form>
             <div id="formMessage" class="message"></div>
         </div>
 
-        <div class="card">
-            <h2>Inventario Actual</h2>
+        <div class="content-card">
+            <h2>&#128202; Inventario Actual</h2>
             <div id="inventory">
-                <p>Cargando...</p>
+                <p class="loading">Cargando inventario</p>
             </div>
         </div>
+    </div>
+
+    <div class="footer">
+        Restaurant Inventory Tracker &mdash; Hecho con <span>&#10084;</span> para cocineros
     </div>
 
     <script>
@@ -40,26 +63,35 @@
             const div = document.getElementById('inventory');
 
             if (!data.length) {
-                div.innerHTML = '<p>No hay ingredientes.</p>';
+                div.innerHTML = '<p style="text-align:center;color:var(--text-light);padding:40px;">&#128522; No hay ingredientes en tu despensa.<br><br><strong style="color:var(--primary);">¡Agrega tu primer ingrediente usando el formulario de arriba!</strong></p>';
                 return;
             }
 
-            let html = '<table><thead><tr><th>Nombre</th><th>Unidad</th><th>Cantidad</th><th>Costo</th><th>Acción</th></tr></thead><tbody>';
+            let html = '<div class="table-wrapper"><table><thead><tr><th>Nombre</th><th>Unidad</th><th>Cantidad</th><th>Costo / Unidad</th><th>Valor Total</th><th>Acción</th></tr></thead><tbody>';
             for (const ing of data) {
-                html += `<tr>
-                    <td>${ing.name}</td>
+                const totalValue = parseFloat(ing.count) * parseFloat(ing.cost);
+                const low = ing.count <= 0 || ing.count < 5;
+                html += `<tr${low ? ' style="background:#fef9e7;"' : ''}>
+                    <td><strong>${ing.name}</strong>${low ? ' <span title="Stock bajo">&#9888;</span>' : ''}</td>
                     <td>${ing.measure}</td>
                     <td>${ing.count}</td>
                     <td>$${parseFloat(ing.cost).toFixed(2)}</td>
-                    <td><button class="delete-btn" onclick="deleteIngredient('${ing.name}')">Eliminar</button></td>
+                    <td>$${totalValue.toFixed(2)}</td>
+                    <td><button class="delete-btn" onclick="deleteIngredient('${ing.name}')">&#128465; Eliminar</button></td>
                 </tr>`;
             }
-            html += '</tbody></table>';
+            html += '</tbody></table></div>';
+
+            const totalInv = data.reduce((sum, ing) => sum + parseFloat(ing.count) * parseFloat(ing.cost), 0);
+            html += `<div style="margin-top:16px;text-align:right;font-size:1.1em;">
+                <strong>Valor total del inventario:</strong> <span style="color:var(--primary);font-family:'Playfair Display',serif;font-size:1.3em;">$${totalInv.toFixed(2)}</span>
+            </div>`;
+
             div.innerHTML = html;
         }
 
         async function deleteIngredient(name) {
-            if (!confirm('Eliminar "' + name + '"?')) return;
+            if (!confirm('Eliminar "' + name + '" del inventario?')) return;
             const res = await fetch('/api/ingredients/' + encodeURIComponent(name), { method: 'DELETE' });
             const data = await res.json();
             showMessage(data.error || data.message, res.ok ? 'success' : 'error');
@@ -91,7 +123,7 @@
             const div = document.getElementById('formMessage');
             div.textContent = msg;
             div.className = 'message ' + type;
-            setTimeout(() => div.textContent = '', 3000);
+            setTimeout(() => div.textContent = '', 4000);
         }
 
         loadInventory();
