@@ -175,6 +175,61 @@ def auth_me():
     return jsonify({'user': {'email': session['user']['email'], 'id': session['user']['id']}})
 
 
+@app.route('/forgot-password')
+def forgot_password_page():
+    return render_template('forgot_password.html')
+
+
+@app.route('/reset-password')
+def reset_password_page():
+    return render_template('reset_password.html')
+
+
+@app.route('/api/auth/recover', methods=['POST'])
+def auth_recover():
+    data = request.get_json()
+    if not data or not data.get('email'):
+        return jsonify({'error': 'Email requerido'}), 400
+
+    r = auth_req('POST', 'recover', data={'email': data['email']})
+    body = r.json()
+    if r.status_code not in (200, 201, 204):
+        return jsonify({'error': body.get('msg') or body.get('error_description') or 'Error al enviar email'}), r.status_code
+
+    return jsonify({'message': 'Revisa tu email. Recibirás un enlace para restablecer tu contraseña.'})
+
+
+@app.route('/api/auth/update-password', methods=['PUT'])
+def auth_update_password():
+    data = request.get_json()
+    if not data or not data.get('password'):
+        return jsonify({'error': 'Nueva contraseña requerida'}), 400
+    if len(data['password']) < 6:
+        return jsonify({'error': 'Mínimo 6 caracteres'}), 400
+
+    token = data.get('token')
+    h = {}
+    if token:
+        h['Authorization'] = f'Bearer {token}'
+
+    r = requests.put(
+        SUPABASE_URL.rstrip('/') + '/auth/v1/user',
+        headers={
+            'apikey': SUPABASE_ANON or '',
+            'Authorization': f'Bearer {token}',
+            'Content-Type': 'application/json',
+        },
+        json={'password': data['password']}
+    )
+    body = r.json()
+    if r.status_code not in (200, 201, 204):
+        return jsonify({'error': body.get('msg') or body.get('error_description') or 'Error al actualizar'}), r.status_code
+
+    if 'user' in session:
+        session.pop('user', None)
+    return jsonify({'message': 'Contraseña actualizada. Inicia sesión con tu nueva contraseña.'})
+
+
 # ── Protected Pages ──
 
 @app.route('/')
