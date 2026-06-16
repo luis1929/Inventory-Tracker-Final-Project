@@ -1,65 +1,52 @@
-import sqlite3
+import os
+import requests
+from dotenv import load_dotenv
 
-# DB init & table creation
+load_dotenv()
 
-con = sqlite3.connect('TestDatabase.db')
-cursor = con.cursor()
-print('DB initialized\n')
+SUPABASE_URL = os.getenv('SUPABASE_URL')
+SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_KEY')
 
-cursor.execute('SELECT sqlite_version();')
-result = cursor.fetchall()
-print('The SQLite version is ' + str(result))
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_KEY must be set in .env file")
 
-# ingredient table creation
-ingredientQuery = """
-    CREATE TABLE IF NOT EXISTS Ingredient_Table (
-        Name STR UNIQUE PRIMARY KEY,
-        Measure STR NOT NULL, 
-        Count REAL DEFAULT 0,
-        Cost REAL DEFAULT 0.00
-    );
-"""
-cursor.execute(ingredientQuery)
-print('\n-The Ingredients Table has been created-')
+API_URL = SUPABASE_URL.rstrip('/') + '/rest/v1'
+HEADERS = {
+    'apikey': SUPABASE_KEY,
+    'Authorization': f'Bearer {SUPABASE_KEY}',
+    'Content-Type': 'application/json',
+}
 
+T_INGS = 'ingredient_table'
+T_RECIPES = 'recipe_table'
+T_RECIPE_INGS = 'recipe_ingredients_table'
 
-# recipe table creation
-recipeTableQuery = """
-    CREATE TABLE IF NOT EXISTS Recipe_Table (
-        RecipeID INTEGER PRIMARY KEY AUTOINCREMENT,
-        RecipeName STR UNIQUE,
-        Instructions STR
-    );
-"""
-cursor.execute(recipeTableQuery)
-print('-The Recipe Table has been created-')
+print('Supabase API connected\n')
 
-recipeIngredientsQuery = """
-    CREATE TABLE IF NOT EXISTS Recipe_Ingredients_Table (
-        RecipeID INTEGER,
-        IngredientName STR,
-        QuantityNeeded REAL NOT NULL,
-        Measure STR NOT NULL,
-        PRIMARY KEY (RecipeID, IngredientName),
-        FOREIGN KEY (RecipeID) REFERENCES Recipe_Table(RecipeID) ON DELETE CASCADE,
-        FOREIGN KEY (IngredientName) REFERENCES Ingredient_Table(Name) ON DELETE CASCADE
-    );
-"""
-cursor.execute(recipeIngredientsQuery)
-print('-The Recipe Ingredients Table has been created-\n')
+r = requests.get(f'{API_URL}/{T_INGS}?select=name&limit=1', headers=HEADERS)
+if r.status_code != 200:
+    print('Warning: Could not access ingredient_table. Tables may not exist.')
+    print('Run CREATE TABLE statements in Supabase SQL Editor first.')
+else:
+    print('-Database tables accessible-')
 
-cursor.execute(
-    'INSERT OR IGNORE INTO Ingredient_Table (Name, Measure, Count, Cost) VALUES ("Potato", "lb", 20.0, 1.02)'
-)
-con.commit()
-print('-Inserted "Test" Data Entry-')
-cursor.execute('SELECT * FROM Ingredient_Table')
-for row in cursor.fetchall():
-    print(row)
+allIngredients = requests.get(f'{API_URL}/{T_INGS}', headers=HEADERS)
+allIngredientList = allIngredients.json()
+if allIngredientList:
+    for row in allIngredientList:
+        print(row)
 
 
-# Ingredient addition function
-def entryFunction(cursor, connect):
+def api_req(method, table, data=None, params=None, extra_headers=None):
+    h = HEADERS.copy()
+    if extra_headers:
+        h.update(extra_headers)
+    url = f'{API_URL}/{table}'
+    r = requests.request(method, url, headers=h, json=data, params=params)
+    return r
+
+
+def entryFunction():
     print("\n-Add/Update Ingredient Inventory-")
 
     while True:
@@ -71,82 +58,80 @@ def entryFunction(cursor, connect):
         except ValueError:
             print("Invalid input for Count or Cost. Please enter a number.")
             continue
-        # The action of storing user values 'exists as' variable (enter)
-        insertQuery = """
-            INSERT OR REPLACE INTO Ingredient_Table (Name, Measure, Count, Cost)
-            VALUES (?, ?, ?, ?);
-        """
-        # Execute actually 'performs' the change we define
-        cursor.execute(insertQuery, (name, measure, count, cost))
-        # Commit 'solidifies' the change(s) we define'
-        connect.commit()
-        print(name + " added/updated!")
-        # Iterate through & print all existing rows
+
+        r = api_req('POST', T_INGS,
+                     data={'name': name, 'measure': measure, 'count': count, 'cost': cost},
+                     extra_headers={'Prefer': 'resolution=merge-duplicates'})
+        if r.status_code in (200, 201, 204):
+            print(name + " added/updated!")
+        else:
+            print("Error: " + r.text)
+
         while True:
             repeat = input('Add another item? (Y/N): ').strip().upper()
             if repeat in ('Y', 'YES'):
                 break
             elif repeat in ('N', 'NO'):
                 print('\n-Current Inventory-')
-                cursor.execute('SELECT * FROM Ingredient_Table')
-                for funcrow in cursor.fetchall():
+                r = api_req('GET', T_INGS)
+                for funcrow in r.json():
                     print(funcrow)
                 return
             else:
                 print("Invalid choice. Enter Y or N.")
 
 
-# Ingredient removal function
-def removeFunction(cursor, connect):
+def removeFunction():
     print("\n-Remove Ingredient from Inventory-")
-    # selects what you want to delete as a placeholder
     whatDelete = input('Ingredient name to remove: ').strip()
-    # deletes the placeholder
-    deleteQuery = "DELETE FROM Ingredient_Table WHERE Name = ?;"
-    cursor.execute(deleteQuery, (whatDelete,))
-    connect.commit()
-    # if placeholder exists in table, deletes it
-    if cursor.rowcount > 0:
-        print(whatDelete + " has been removed.")
-    else:
+
+    # Check if exists first
+    r = api_req('GET', T_INGS, params={'name': 'eq.' + whatDelete, 'select': 'name'})
+    exists = len(r.json()) > 0
+
+    if not exists:
         print("No ingredient named '" + whatDelete + "' found.")
+    else:
+        api_req('DELETE', T_INGS, params={'name': 'eq.' + whatDelete},
+                extra_headers={'Prefer': 'return=representation'})
+        print(whatDelete + " has been removed.")
 
     print('\n-Current Inventory-')
-    cursor.execute('SELECT * FROM Ingredient_Table')
-    for funcrow in cursor.fetchall():
+    r = api_req('GET', T_INGS)
+    for funcrow in r.json():
         print(funcrow)
 
 
-# Recipe Addition function
-def addRecipeFunction(cursor, connect):
+def addRecipeFunction():
     print("\n-Add New Recipe-")
     recipeName = input('Recipe name: ').strip()
     instructions = input('Cooking instructions: ').strip()
 
-    try:
-        cursor.execute(
-            "INSERT INTO Recipe_Table (RecipeName, Instructions) VALUES (?, ?);",
-            (recipeName, instructions)
-        )
-        recipeId = cursor.lastrowid
-        print("Recipe '" + recipeName + "' added (ID: " + str(recipeId) + ").")
-    except sqlite3.IntegrityError:
+    r = api_req('POST', T_RECIPES,
+                data={'recipe_name': recipeName, 'instructions': instructions},
+                extra_headers={'Prefer': 'return=representation'})
+    if r.status_code == 409:
         print("A recipe named '" + recipeName + "' already exists.")
         return
+    if r.status_code != 201:
+        print("Error creating recipe: " + r.text)
+        return
+
+    recipeId = r.json()[0]['recipe_id']
+    print("Recipe '" + recipeName + "' added (ID: " + str(recipeId) + ").")
 
     while True:
         ingName = input('\nIngredient for recipe: ').strip()
 
-        cursor.execute("SELECT Measure, Count FROM Ingredient_Table WHERE Name = ?;", (ingName,))
-        ingredientInfo = cursor.fetchone()
-
-        if ingredientInfo is None:
+        r = api_req('GET', T_INGS, params={'name': 'eq.' + ingName, 'select': 'name,measure,count'})
+        ingData = r.json()
+        if not ingData:
             print("Ingredient '" + ingName + "' not found in inventory.")
             continue
 
-        ingredientMeasure = ingredientInfo[0]
-        currentStock = ingredientInfo[1]
-    # Throw a warning if the user is out of said item
+        ingredientMeasure = ingData[0]['measure']
+        currentStock = ingData[0]['count']
+
         if currentStock <= 0:
             print("WARNING: You currently have " + str(currentStock) + " " +
                   ingredientMeasure + " of " + ingName)
@@ -157,15 +142,15 @@ def addRecipeFunction(cursor, connect):
             print("Invalid number.")
             continue
 
-        insertLink = """
-        INSERT INTO Recipe_Ingredients_Table (RecipeID, IngredientName, QuantityNeeded, Measure)
-        VALUES (?, ?, ?, ?);
-        """
-        cursor.execute(insertLink, (recipeId, ingName, quantity, ingredientMeasure))
-        connect.commit()
-
-        print(ingName + " (" + str(quantity) + " " + ingredientMeasure +
-              ") added to " + recipeName)
+        r = api_req('POST', T_RECIPE_INGS,
+                    data={'recipe_id': recipeId, 'ingredient_name': ingName,
+                          'quantity_needed': quantity, 'measure': ingredientMeasure})
+        if r.status_code in (200, 201, 204):
+            print(ingName + " (" + str(quantity) + " " + ingredientMeasure +
+                  ") added to " + recipeName)
+        else:
+            print("Error: " + r.text)
+            continue
 
         while True:
             repeat = input('Add another ingredient? (Y/N): ').strip().upper()
@@ -178,61 +163,141 @@ def addRecipeFunction(cursor, connect):
                 print("Invalid choice. Enter Y or N.")
 
 
-# View List recipe(s)
-def showRecipes(cursor):
+def showRecipes():
     print("\n-Current Recipes-")
-    cursor.execute('SELECT * FROM Recipe_Table')
-    recipes = cursor.fetchall()
-    #just to remind the user that they added no recipes
+    r = api_req('GET', T_RECIPES)
+    recipes = r.json()
+
     if not recipes:
         print("No recipes found.")
         return
-    
+
     for recipe in recipes:
-        recipeId, name, instructions = recipe
-        print("\nID: " + str(recipeId) + " | Name: " + name)
-        print("Instructions:", instructions)
+        print("\nID: " + str(recipe['recipe_id']) + " | Name: " + recipe['recipe_name'])
+        print("Instructions: " + recipe['instructions'])
 
         print("-Ingredients-")
-        cursor.execute("""
-            SELECT IngredientName, QuantityNeeded, Measure
-            FROM Recipe_Ingredients_Table
-            WHERE RecipeID = ?
-        """, (recipeId,))
-        for ingName, qty, measure in cursor.fetchall():
-            print("  - " + str(qty) + " " + measure + " of " + ingName)
+        r2 = api_req('GET', T_RECIPE_INGS,
+                     params={'recipe_id': 'eq.' + str(recipe['recipe_id']),
+                             'select': 'ingredient_name,quantity_needed,measure'})
+        for item in r2.json():
+            print("  - " + str(item['quantity_needed']) + " " + item['measure'] +
+                  " of " + item['ingredient_name'])
 
 
-# Recipe removal function
-def deleteRecipeFunction(cursor, connect):
+def deleteRecipeFunction():
     print("\n-Delete Recipe-")
-    cursor.execute('SELECT RecipeID, RecipeName FROM Recipe_Table')
-    recipes = cursor.fetchall()
+    r = api_req('GET', T_RECIPES, params={'select': 'recipe_id,recipe_name'})
+    recipes = r.json()
 
     if not recipes:
         print("No recipes to delete.")
         return
 
-    for recipeId, name in recipes:
-        print("ID: " + str(recipeId) + ", Name: " + name)
+    for recipe in recipes:
+        print("ID: " + str(recipe['recipe_id']) + ", Name: " + recipe['recipe_name'])
 
     whatDelete = input('Recipe name to delete: ').strip()
 
-    cursor.execute("DELETE FROM Recipe_Table WHERE RecipeName = ?;", (whatDelete,))
-    connect.commit()
-
-    if cursor.rowcount > 0:
+    r = api_req('DELETE', T_RECIPES,
+                params={'recipe_name': 'eq.' + whatDelete},
+                extra_headers={'Prefer': 'return=representation'})
+    deleted = r.json() if r.status_code == 200 else []
+    if deleted:
         print("Recipe '" + whatDelete + "' has been removed.")
     else:
         print("No recipe named '" + whatDelete + "' found.")
 
     print("\n-Remaining Recipes-")
-    cursor.execute('SELECT RecipeID, RecipeName FROM Recipe_Table')
-    for row in cursor.fetchall():
-        print("ID: " + str(row[0]) + ", Name: " + row[1])
+    r = api_req('GET', T_RECIPES, params={'select': 'recipe_id,recipe_name'})
+    for row in r.json():
+        print("ID: " + str(row['recipe_id']) + ", Name: " + row['recipe_name'])
 
 
-## 'Main menu' loop
+def checkRecipeFunction():
+    print("\n-Check Recipe vs Inventory-")
+    r = api_req('GET', T_RECIPES, params={'select': 'recipe_id,recipe_name'})
+    recipes = r.json()
+
+    if not recipes:
+        print("No recipes found.")
+        return
+
+    for recipe in recipes:
+        print("ID: " + str(recipe['recipe_id']) + ", Name: " + recipe['recipe_name'])
+
+    recipeName = input("\nRecipe name to check: ").strip()
+
+    r = api_req('GET', T_RECIPES, params={'recipe_name': 'eq.' + recipeName})
+    recipeData = r.json()
+    if not recipeData:
+        print("No recipe named '" + recipeName + "' found.")
+        return
+
+    recipe = recipeData[0]
+    recipeId = recipe['recipe_id']
+    print("\n=== Recipe: " + recipe['recipe_name'] + " ===")
+    print("Instructions: " + recipe['instructions'])
+
+    r = api_req('GET', T_RECIPE_INGS,
+                params={'recipe_id': 'eq.' + str(recipeId),
+                        'select': 'ingredient_name,quantity_needed,measure,ingredient_table(count,cost)'})
+    ingredients = r.json()
+
+    if not ingredients:
+        print("No ingredients found for this recipe.")
+        return
+
+    totalCost = 0.0
+    missingCost = 0.0
+    shoppingList = []
+    allAvailable = True
+
+    print("\n--- Inventory Comparison ---")
+    print(f"{'Ingredient':<20} {'Need':<12} {'Have':<12} {'Missing':<12} {'Cost':<10}")
+    print("-" * 66)
+
+    for item in ingredients:
+        ingName = item['ingredient_name']
+        qtyNeeded = item['quantity_needed']
+        measure = item['measure']
+        stock = item['ingredient_table']['count']
+        cost = item['ingredient_table']['cost']
+
+        missing = max(0.0, qtyNeeded - stock)
+        ingCost = qtyNeeded * cost
+        ingMissingCost = missing * cost
+        totalCost += ingCost
+        missingCost += ingMissingCost
+
+        needStr = str(qtyNeeded) + " " + measure
+        haveStr = str(stock) + " " + measure
+        missingStr = str(round(missing, 2)) + " " + measure if missing > 0 else "None"
+        costStr = "${:.2f}".format(ingCost)
+
+        print(f"{ingName:<20} {needStr:<12} {haveStr:<12} {missingStr:<12} {costStr:<10}")
+
+        if missing > 0:
+            allAvailable = False
+            shoppingList.append((ingName, missing, measure, ingMissingCost))
+
+    print("-" * 66)
+    print("\n--- Recipe Cost Estimation ---")
+    print("  Total recipe cost (all ingredients): ${:.2f}".format(totalCost))
+
+    if allAvailable:
+        print("\n--- Shopping List ---")
+        print("  You have all ingredients needed! Nothing to buy.")
+    else:
+        print("\n--- Shopping List ---")
+        print(f"{'Ingredient':<20} {'Qty to Buy':<12} {'Cost':<10}")
+        print("-" * 42)
+        for ingName, qty, measure, cost in shoppingList:
+            print(f"{ingName:<20} {qty:.2f} {measure:<6} ${cost:.2f}")
+        print("-" * 42)
+        print(f"{'Total to spend:':<33} ${missingCost:.2f}")
+
+
 while True:
     print("\n=== MAIN MENU ===")
     print("I - Ingredient Menu")
@@ -246,29 +311,32 @@ while True:
             sub = input("\nIngredient Menu: Change (C) or Delete (D)? ").strip().upper()
 
             if sub == "C":
-                entryFunction(cursor, con)
+                entryFunction()
                 break
             elif sub == "D":
-                removeFunction(cursor, con)
+                removeFunction()
                 break
             else:
                 print("Invalid choice. Enter C or D.")
 
     elif choice == "R":
         while True:
-            sub = input("\nRecipe Menu: Add (A), View (V), Delete (D)? ").strip().upper()
+            sub = input("\nRecipe Menu: Add (A), View (V), Delete (D), Check (C)? ").strip().upper()
 
             if sub == "A":
-                addRecipeFunction(cursor, con)
+                addRecipeFunction()
                 break
             elif sub == "V":
-                showRecipes(cursor)
+                showRecipes()
                 break
             elif sub == "D":
-                deleteRecipeFunction(cursor, con)
+                deleteRecipeFunction()
+                break
+            elif sub == "C":
+                checkRecipeFunction()
                 break
             else:
-                print("Invalid choice. Enter A, V, or D.")
+                print("Invalid choice. Enter A, V, D, or C.")
 
     elif choice == "X":
         print("\n-Exiting Program-")
@@ -277,10 +345,9 @@ while True:
     else:
         print("Invalid choice. Enter I, R, or X.")
 
-# Kill & Close block
 print("\n-Closing Program-")
-input("Press Enter to exit...")
-cursor.close()
-con.close()
-print("DB Connection Closed")
-
+try:
+    input("Press Enter to exit...")
+except EOFError:
+    pass
+print("Supabase API session closed")

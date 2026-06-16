@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ingredients - Inventory Tracker</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Ingredients</h1>
+        <a href="/" class="back-link">&larr; Back to Dashboard</a>
+
+        <div class="card">
+            <h2>Add / Update Ingredient</h2>
+            <form id="ingredientForm">
+                <div class="form-row">
+                    <input type="text" id="ingName" placeholder="Ingredient Name" required>
+                    <input type="text" id="ingMeasure" placeholder="Unit (lb, oz, qt, etc.)" required>
+                    <input type="number" step="0.01" id="ingCount" placeholder="Stock Count" required>
+                    <input type="number" step="0.01" id="ingCost" placeholder="Cost per unit" required>
+                    <button type="submit">Save</button>
+                </div>
+            </form>
+            <div id="formMessage" class="message"></div>
+        </div>
+
+        <div class="card">
+            <h2>Current Inventory</h2>
+            <div id="inventory">
+                <p>Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function loadInventory() {
+            const res = await fetch('/api/ingredients');
+            const data = await res.json();
+            const div = document.getElementById('inventory');
+
+            if (!data.length) {
+                div.innerHTML = '<p>No ingredients found.</p>';
+                return;
+            }
+
+            let html = '<table><thead><tr><th>Name</th><th>Measure</th><th>Count</th><th>Cost</th><th>Actions</th></tr></thead><tbody>';
+            for (const ing of data) {
+                html += `<tr>
+                    <td>${ing.name}</td>
+                    <td>${ing.measure}</td>
+                    <td>${ing.count}</td>
+                    <td>$${parseFloat(ing.cost).toFixed(2)}</td>
+                    <td><button class="delete-btn" onclick="deleteIngredient('${ing.name}')">Delete</button></td>
+                </tr>`;
+            }
+            html += '</tbody></table>';
+            div.innerHTML = html;
+        }
+
+        async function deleteIngredient(name) {
+            if (!confirm('Delete "' + name + '"?')) return;
+            const res = await fetch('/api/ingredients/' + encodeURIComponent(name), { method: 'DELETE' });
+            const data = await res.json();
+            showMessage(data.error || data.message, res.ok ? 'success' : 'error');
+            if (res.ok) loadInventory();
+        }
+
+        document.getElementById('ingredientForm').onsubmit = async function(e) {
+            e.preventDefault();
+            const data = {
+                name: document.getElementById('ingName').value.trim(),
+                measure: document.getElementById('ingMeasure').value.trim(),
+                count: parseFloat(document.getElementById('ingCount').value),
+                cost: parseFloat(document.getElementById('ingCost').value),
+            };
+            const res = await fetch('/api/ingredients', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data),
+            });
+            const result = await res.json();
+            showMessage(result.error || result.message, res.ok ? 'success' : 'error');
+            if (res.ok) {
+                this.reset();
+                loadInventory();
+            }
+        };
+
+        function showMessage(msg, type) {
+            const div = document.getElementById('formMessage');
+            div.textContent = msg;
+            div.className = 'message ' + type;
+            setTimeout(() => div.textContent = '', 3000);
+        }
+
+        loadInventory();
+    </script>
+</body>
+</html>

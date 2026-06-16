@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Restaurant Inventory Tracker</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Restaurant Inventory Tracker</h1>
+        <p class="subtitle">Manage your kitchen inventory and recipes</p>
+
+        <div class="dashboard-cards">
+            <a href="/ingredients" class="card">
+                <h2>Ingredients</h2>
+                <p>Add, update, and remove ingredients from your inventory</p>
+            </a>
+            <a href="/recipes" class="card">
+                <h2>Recipes</h2>
+                <p>Create, view, and check recipes against your stock</p>
+            </a>
+        </div>
+
+        <div class="card summary-card">
+            <h2>Summary</h2>
+            <div id="summary">
+                <p>Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function loadSummary() {
+            try {
+                const [ingsRes, recsRes] = await Promise.all([
+                    fetch('/api/ingredients'),
+                    fetch('/api/recipes')
+                ]);
+                const ingredients = await ingsRes.json();
+                const recipes = await recsRes.json();
+
+                document.getElementById('summary').innerHTML = `
+                    <p><strong>${ingredients.length}</strong> ingredients in stock</p>
+                    <p><strong>${recipes.length}</strong> recipes saved</p>
+                `;
+            } catch (e) {
+                document.getElementById('summary').innerHTML = '<p>Error loading data</p>';
+            }
+        }
+        loadSummary();
+    </script>
+</body>
+</html>

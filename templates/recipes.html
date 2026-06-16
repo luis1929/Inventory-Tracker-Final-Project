@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recipes - Inventory Tracker</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Recipes</h1>
+        <a href="/" class="back-link">&larr; Back to Dashboard</a>
+
+        <div class="card">
+            <h2>Add New Recipe</h2>
+            <form id="recipeForm">
+                <div class="form-row">
+                    <input type="text" id="recipeName" placeholder="Recipe name" required>
+                    <input type="text" id="recipeInstructions" placeholder="Instructions" style="flex:2">
+                </div>
+                <h3>Ingredients</h3>
+                <div id="ingredientRows">
+                    <div class="form-row ing-row">
+                        <select class="ing-select" required>
+                            <option value="">Select ingredient...</option>
+                        </select>
+                        <input type="number" step="0.01" class="ing-qty" placeholder="Quantity" required>
+                        <span class="ing-measure"></span>
+                        <button type="button" class="remove-ing" onclick="this.parentElement.remove()">X</button>
+                    </div>
+                </div>
+                <button type="button" onclick="addIngredientRow()">+ Add Ingredient</button>
+                <button type="submit">Save Recipe</button>
+            </form>
+            <div id="formMessage" class="message"></div>
+        </div>
+
+        <div class="card">
+            <h2>All Recipes</h2>
+            <div id="recipesList">
+                <p>Loading...</p>
+            </div>
+        </div>
+
+        <div id="checkModal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close" onclick="closeCheck()">&times;</span>
+                <div id="checkResult"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allIngredients = [];
+
+        async function loadIngredients() {
+            const res = await fetch('/api/ingredients');
+            allIngredients = await res.json();
+            document.querySelectorAll('.ing-select').forEach(sel => populateSelect(sel));
+        }
+
+        function populateSelect(sel) {
+            const current = sel.value;
+            sel.innerHTML = '<option value="">Select ingredient...</option>';
+            allIngredients.forEach(ing => {
+                sel.innerHTML += `<option value="${ing.name}" data-measure="${ing.measure}">${ing.name} (${ing.measure})</option>`;
+            });
+            sel.value = current;
+        }
+
+        function addIngredientRow() {
+            const div = document.createElement('div');
+            div.className = 'form-row ing-row';
+            div.innerHTML = `
+                <select class="ing-select" required>
+                    <option value="">Select ingredient...</option>
+                </select>
+                <input type="number" step="0.01" class="ing-qty" placeholder="Quantity" required>
+                <span class="ing-measure"></span>
+                <button type="button" class="remove-ing" onclick="this.parentElement.remove()">X</button>
+            `;
+            document.getElementById('ingredientRows').appendChild(div);
+            populateSelect(div.querySelector('.ing-select'));
+            div.querySelector('.ing-select').onchange = function() {
+                const opt = this.options[this.selectedIndex];
+                const measure = opt.dataset.measure || '';
+                div.querySelector('.ing-measure').textContent = measure;
+            };
+        }
+
+        document.getElementById('recipeForm').onsubmit = async function(e) {
+            e.preventDefault();
+            const name = document.getElementById('recipeName').value.trim();
+            const instructions = document.getElementById('recipeInstructions').value.trim();
+            const rows = document.querySelectorAll('.ing-row');
+            const ingredients = [];
+            let valid = true;
+            rows.forEach(row => {
+                const sel = row.querySelector('.ing-select');
+                const qty = row.querySelector('.ing-qty');
+                if (sel.value && qty.value) {
+                    const opt = sel.options[sel.selectedIndex];
+                    ingredients.push({
+                        ingredient_name: sel.value,
+                        quantity_needed: parseFloat(qty.value),
+                        measure: opt.dataset.measure || '',
+                    });
+                } else if (sel.value || qty.value) {
+                    valid = false;
+                }
+            });
+            if (!valid) return showMessage('Complete all ingredient fields', 'error');
+            if (!ingredients.length) return showMessage('Add at least one ingredient', 'error');
+
+            const res = await fetch('/api/recipes', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ recipe_name: name, instructions, ingredients }),
+            });
+            const result = await res.json();
+            showMessage(result.error || result.message, res.ok ? 'success' : 'error');
+            if (res.ok) {
+                this.reset();
+                document.getElementById('ingredientRows').innerHTML = '';
+                addIngredientRow();
+                loadRecipes();
+            }
+        };
+
+        async function loadRecipes() {
+            const res = await fetch('/api/recipes');
+            const recipes = await res.json();
+            const div = document.getElementById('recipesList');
+
+            if (!recipes.length) {
+                div.innerHTML = '<p>No recipes found.</p>';
+                return;
+            }
+
+            let html = '';
+            for (const recipe of recipes) {
+                html += `<div class="recipe-card">
+                    <div class="recipe-header">
+                        <h3>${recipe.recipe_name}</h3>
+                        <div class="recipe-actions">
+                            <button onclick="checkRecipe(${recipe.recipe_id})">Check</button>
+                            <button class="delete-btn" onclick="deleteRecipe('${recipe.recipe_name}')">Delete</button>
+                        </div>
+                    </div>
+                    <p class="instructions">${recipe.instructions || 'No instructions'}</p>
+                    <h4>Ingredients:</h4>
+                    <ul>`;
+                for (const ing of (recipe.ingredients || [])) {
+                    html += `<li>${ing.quantity_needed} ${ing.measure} of ${ing.ingredient_name}</li>`;
+                }
+                html += `</ul></div>`;
+            }
+            div.innerHTML = html;
+        }
+
+        async function deleteRecipe(name) {
+            if (!confirm('Delete "' + name + '"?')) return;
+            const res = await fetch('/api/recipes/' + encodeURIComponent(name), { method: 'DELETE' });
+            const data = await res.json();
+            showMessage(data.error || data.message, res.ok ? 'success' : 'error');
+            if (res.ok) loadRecipes();
+        }
+
+        async function checkRecipe(id) {
+            const res = await fetch(`/api/recipes/${id}/check`);
+            const data = await res.json();
+            if (data.error) return showMessage(data.error, 'error');
+
+            let html = `<h2>${data.recipe_name}</h2>
+                <p>${data.instructions || ''}</p>
+                <h3>Inventory Comparison</h3>
+                <table><thead><tr><th>Ingredient</th><th>Need</th><th>Have</th><th>Missing</th><th>Cost</th></tr></thead><tbody>`;
+            for (const d of data.details) {
+                const missing = d.missing > 0 ? d.missing.toFixed(2) + ' ' + d.measure : 'None';
+                html += `<tr><td>${d.name}</td><td>${d.needed} ${d.measure}</td><td>${d.have} ${d.measure}</td><td>${missing}</td><td>$${d.cost.toFixed(2)}</td></tr>`;
+            }
+            html += `</tbody></table>
+                <h3>Recipe Cost: $${data.total_cost.toFixed(2)}</h3>`;
+
+            if (data.all_available) {
+                html += '<p class="success">You have all ingredients needed!</p>';
+            } else {
+                html += '<h3>Shopping List</h3><table><thead><tr><th>Ingredient</th><th>Qty to Buy</th><th>Cost</th></tr></thead><tbody>';
+                for (const s of data.shopping_list) {
+                    html += `<tr><td>${s.name}</td><td>${s.qty.toFixed(2)} ${s.measure}</td><td>$${s.cost.toFixed(2)}</td></tr>`;
+                }
+                html += `</tbody></table><h3>Total to spend: $${data.missing_cost.toFixed(2)}</h3>`;
+            }
+
+            document.getElementById('checkResult').innerHTML = html;
+            document.getElementById('checkModal').classList.remove('hidden');
+        }
+
+        function closeCheck() {
+            document.getElementById('checkModal').classList.add('hidden');
+        }
+
+        function showMessage(msg, type) {
+            const div = document.getElementById('formMessage');
+            div.textContent = msg;
+            div.className = 'message ' + type;
+            setTimeout(() => div.textContent = '', 3000);
+        }
+
+        document.querySelector('.ing-select')?.addEventListener('change', function() {
+            const opt = this.options[this.selectedIndex];
+            this.parentElement.querySelector('.ing-measure').textContent = opt.dataset.measure || '';
+        });
+
+        loadIngredients();
+        loadRecipes();
+    </script>
+</body>
+</html>
