@@ -1,35 +1,49 @@
 import os
+import sys
 import requests
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify, render_template
 
 load_dotenv()
 
-app = Flask(__name__, template_folder='../templates', static_folder='../static')
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+app = Flask(__name__,
+            template_folder=os.path.join(BASE_DIR, 'templates'),
+            static_folder=os.path.join(BASE_DIR, 'static'))
 
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_KEY')
 
 if not SUPABASE_URL or not SUPABASE_KEY:
-    raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_KEY must be set")
-
-API_URL = SUPABASE_URL.rstrip('/') + '/rest/v1'
-HEADERS = {
-    'apikey': SUPABASE_KEY,
-    'Authorization': f'Bearer {SUPABASE_KEY}',
-    'Content-Type': 'application/json',
-}
+    print("ERROR: SUPABASE_URL and SUPABASE_SERVICE_KEY must be set", file=sys.stderr)
 
 T_INGS = 'ingredient_table'
 T_RECIPES = 'recipe_table'
 T_RECIPE_INGS = 'recipe_ingredients_table'
 
 
+def get_api_config():
+    url = os.getenv('SUPABASE_URL')
+    key = os.getenv('SUPABASE_SERVICE_KEY')
+    if not url or not key:
+        return None, None, 'Supabase credentials not configured. Set SUPABASE_URL and SUPABASE_SERVICE_KEY in Vercel env vars.'
+    api_url = url.rstrip('/') + '/rest/v1'
+    headers = {
+        'apikey': key,
+        'Authorization': f'Bearer {key}',
+        'Content-Type': 'application/json',
+    }
+    return api_url, headers, None
+
+
 def api_req(method, table, data=None, params=None, extra_headers=None):
-    h = HEADERS.copy()
+    api_url, headers, err = get_api_config()
+    if err:
+        return type('Response', (), {'status_code': 500, 'json': lambda: {'error': err}, 'text': err})()
+    h = headers.copy()
     if extra_headers:
         h.update(extra_headers)
-    url = f'{API_URL}/{table}'
+    url = f'{api_url}/{table}'
     r = requests.request(method, url, headers=h, json=data, params=params)
     return r
 
