@@ -61,7 +61,8 @@
                     <input type="text" id="ingBrand" placeholder="Marca" style="flex:0.7;">
                 </div>
                 <div class="form-row">
-                    <input type="text" id="ingSupplier" placeholder="Proveedor" style="flex:0.8;">
+                    <input type="text" id="ingSupplier" placeholder="Proveedor" style="flex:0.8;" list="supplierList" autocomplete="off">
+                    <datalist id="supplierList"></datalist>
                     <input type="text" id="ingPresentation" placeholder="Presentacion" style="flex:0.8;">
                 </div>
                 <div class="form-row">
@@ -108,11 +109,22 @@
 
     <script>
         let allData = [];
+        let allSuppliers = [];
 
         async function loadInventory() {
-            const res = await fetch('/api/ingredients');
+            const [res, supRes] = await Promise.all([
+                fetch('/api/ingredients'),
+                fetch('/api/suppliers')
+            ]);
             allData = await res.json();
+            allSuppliers = await supRes.json();
             renderInventory();
+            renderSuppliers();
+        }
+
+        function renderSuppliers() {
+            const dl = document.getElementById('supplierList');
+            dl.innerHTML = allSuppliers.map(s => `<option value="${s}">`).join('');
         }
 
         function renderInventory() {
@@ -198,7 +210,12 @@
             });
             const data = await res.json();
             showMessage(data.error || data.message, res.ok ? 'success' : 'error');
-            if (res.ok) loadInventory();
+            if (res.ok) {
+                loadInventory();
+                const supRes = await fetch('/api/suppliers');
+                allSuppliers = await supRes.json();
+                renderSuppliers();
+            }
         }
 
         function editIngredient(name) {
@@ -252,6 +269,10 @@
             if (res.ok) {
                 cancelEdit();
                 loadInventory();
+                // Refresh supplier list
+                const supRes = await fetch('/api/suppliers');
+                allSuppliers = await supRes.json();
+                renderSuppliers();
             }
         };
 

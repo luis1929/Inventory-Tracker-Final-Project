@@ -326,6 +326,22 @@ def add_ingredient():
                 extra_headers={'Prefer': 'resolution=merge-duplicates'})
     if r.status_code not in (200, 201, 204):
         return jsonify({'error': r.text}), r.status_code
+    # Refresh suppliers file
+    try:
+        sr = api_req('GET', T_INGS, params={'select': 'supplier', 'supplier': 'not.is.null', 'order': 'supplier.asc'})
+        if sr.status_code == 200:
+            seen = set()
+            suppliers = []
+            for ing in sr.json():
+                s = ing.get('supplier', '').strip()
+                if s and s.lower() not in seen:
+                    seen.add(s.lower())
+                    suppliers.append(s)
+            filepath = os.path.join(BASE_DIR, 'suppliers.json')
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(suppliers, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
     return jsonify({'message': data['name'] + ' agregado/actualizado'})
 
 
@@ -726,6 +742,30 @@ def _compute_dish_cost(dish_id):
     final_total = round(raw_total + overhead, 2)
     api_req('PATCH', T_MENU, data={'cost_total': final_total}, params={'id': 'eq.' + str(dish_id)})
     return raw_total, final_total, enriched
+
+
+
+@app.route('/api/suppliers', methods=['GET'])
+@api_auth_required
+def get_suppliers():
+    r = api_req('GET', T_INGS, params={'select': 'supplier', 'supplier': 'not.is.null', 'order': 'supplier.asc'})
+    if r.status_code != 200:
+        return jsonify({'error': r.text}), r.status_code
+    seen = set()
+    suppliers = []
+    for ing in r.json():
+        s = ing.get('supplier', '').strip()
+        if s and s.lower() not in seen:
+            seen.add(s.lower())
+            suppliers.append(s)
+    # Also save to file
+    try:
+        filepath = os.path.join(BASE_DIR, 'suppliers.json')
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(suppliers, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+    return jsonify(suppliers)
 
 
 @app.route('/api/ingredients/names', methods=['GET'])
