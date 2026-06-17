@@ -30,68 +30,89 @@
             .pos-layout { grid-template-columns: 1fr; }
         }
 
-        /* Dish Grid */
-        .pos-category {
-            margin-bottom: 32px;
+        /* Category Tabs */
+        .cat-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 16px;
         }
-        .pos-category h3 {
-            font-family: 'Playfair Display', serif;
-            font-size: 1.3em;
+        .cat-tabs button {
+            padding: 6px 14px;
+            border: 1px solid #d5e8f0;
+            border-radius: 20px;
+            background: white;
+            cursor: pointer;
+            font-size: 0.78em;
+            font-weight: 500;
+            color: var(--pos-text);
+            transition: all 0.15s;
+        }
+        .cat-tabs button:hover {
+            border-color: var(--pos-primary-light);
             color: var(--pos-primary);
-            margin-bottom: 12px;
-            padding-bottom: 6px;
-            border-bottom: 2px solid #d5e8f0;
+        }
+        .cat-tabs button.active {
+            background: var(--pos-primary);
+            color: white;
+            border-color: var(--pos-primary);
+        }
+
+        /* Dish Grid */
+        .pos-section-title {
+            font-size: 0.95em;
+            color: var(--pos-text-light);
+            margin-bottom: 10px;
+            min-height: 1.4em;
         }
         .pos-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 12px;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 8px;
         }
         .pos-dish {
             background: var(--pos-card-bg);
-            border-radius: 12px;
-            padding: 14px;
+            border-radius: 10px;
+            padding: 8px 10px;
             border: 1px solid #e8edf2;
-            transition: all 0.2s;
+            transition: all 0.15s;
             cursor: pointer;
             display: flex;
             flex-direction: column;
         }
         .pos-dish:hover {
-            box-shadow: 0 4px 16px rgba(26,82,118,0.1);
+            box-shadow: 0 2px 8px rgba(26,82,118,0.08);
             border-color: var(--pos-primary-light);
-            transform: translateY(-2px);
         }
         .pos-dish .dish-icon {
-            font-size: 2.2em;
-            margin-bottom: 4px;
+            display: none;
         }
         .pos-dish .dish-name {
             font-weight: 600;
-            font-size: 0.9em;
+            font-size: 0.72em;
             color: var(--pos-text);
-            flex: 1;
+            line-height: 1.2;
+            margin-bottom: 2px;
         }
         .pos-dish .dish-meta {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-top: 8px;
-            font-size: 0.85em;
+            font-size: 0.7em;
         }
         .pos-dish .dish-price {
             font-weight: 700;
             color: var(--pos-primary);
-            font-size: 1.1em;
+            font-size: 1em;
         }
         .pos-dish .dish-cost {
             color: var(--pos-text-light);
-            font-size: 0.8em;
+            font-size: 0.85em;
         }
         .pos-dish .dish-profit {
-            font-size: 0.75em;
-            padding: 2px 8px;
-            border-radius: 10px;
+            font-size: 0.65em;
+            padding: 1px 6px;
+            border-radius: 8px;
             font-weight: 600;
         }
         .profit-positive { background: #d5f5e3; color: #1e8449; }
@@ -99,19 +120,21 @@
         .pos-dish .qty-selector {
             display: flex;
             align-items: center;
-            gap: 6px;
-            margin-top: 10px;
+            gap: 4px;
+            margin-top: 4px;
         }
         .pos-dish .qty-selector button {
-            width: 30px; height: 30px;
+            width: 22px; height: 22px;
             border: 1px solid #d5e8f0;
             border-radius: 50%;
             background: white;
             cursor: pointer;
-            font-size: 1.1em;
+            font-size: 0.85em;
             font-weight: 600;
             color: var(--pos-primary);
             transition: all 0.15s;
+            line-height: 0;
+            padding: 0;
         }
         .pos-dish .qty-selector button:hover {
             background: var(--pos-primary-light);
@@ -119,15 +142,15 @@
             border-color: var(--pos-primary-light);
         }
         .pos-dish .qty-selector span {
-            min-width: 28px;
+            min-width: 20px;
             text-align: center;
             font-weight: 700;
-            font-size: 1em;
+            font-size: 0.8em;
         }
         .pos-dish .dish-stock-warn {
-            font-size: 0.7em;
+            font-size: 0.6em;
             color: #e67e22;
-            margin-top: 4px;
+            margin-top: 2px;
         }
 
         /* Ticket Panel */
@@ -331,7 +354,9 @@
         <div class="pos-layout">
 
             <div id="posDishGrid">
-                <p class="loading">Cargando platos...</p>
+                <div class="cat-tabs" id="catTabs"></div>
+                <div class="pos-section-title" id="posSectionTitle">Cargando platos...</div>
+                <div class="pos-grid" id="posGrid"></div>
             </div>
 
             <div class="ticket-panel">
@@ -361,6 +386,7 @@
     <script>
         let dishes = [];
         let ticket = [];
+        let selectedCategory = '';
 
         function showToast(msg) {
             const t = document.getElementById('posToast');
@@ -390,46 +416,56 @@
         }
 
         function renderDishes() {
-            const grid = document.getElementById('posDishGrid');
             if (!dishes.length) {
-                grid.innerHTML = '<p style="text-align:center;padding:60px;color:var(--pos-text-light);">No hay platos registrados. Ve al Menu Planner para crear platos con precios.</p>';
+                document.getElementById('posDishGrid').innerHTML = '<p style="text-align:center;padding:60px;color:var(--pos-text-light);">No hay platos registrados. Ve al Menu Planner para crear platos con precios.</p>';
                 return;
             }
             const cats = {};
             dishes.forEach(d => {
-                if (!cats[d.category]) cats[d.category] = [];
-                cats[d.category].push(d);
+                const c = d.category || 'Sin categoria';
+                if (!cats[c]) cats[c] = [];
+                cats[c].push(d);
             });
+            const catNames = Object.keys(cats).sort();
+
+            // Category tabs
+            let tabHtml = '<button class="active" onclick="selectCategory(\'\')">Todos (' + dishes.length + ')</button>';
+            catNames.forEach(c => {
+                const cls = selectedCategory === c ? 'active' : '';
+                tabHtml += '<button class="' + cls + '" onclick="selectCategory(\'' + c.replace(/'/g, "\\'") + '\')">' + c + ' (' + cats[c].length + ')</button>';
+            });
+            document.getElementById('catTabs').innerHTML = tabHtml;
+
+            // Filter
+            const filtered = selectedCategory ? (cats[selectedCategory] || []) : dishes;
+            const title = selectedCategory ? selectedCategory : 'Todos los platos';
+            document.getElementById('posSectionTitle').textContent = title + ' (' + filtered.length + ')';
+
+            const grid = document.getElementById('posGrid');
             let html = '';
-            Object.keys(cats).sort().forEach(cat => {
-                html += `<div class="pos-category"><h3>&#128336; ${cat}</h3><div class="pos-grid">`;
-                cats[cat].forEach(d => {
-                    const inTicket = ticket.find(t => t.id === d.id);
-                    const qty = inTicket ? inTicket.qty : 0;
-                    const profitClass = d.profit >= 0 ? 'profit-positive' : 'profit-negative';
-                    const profitLabel = d.profit >= 0 ? '+' : '';
-                    const hasStockIssue = d.recipe_details.some(r => r.current_stock < r.quantity_grams);
-                    html += `<div class="pos-dish">
-                        <div class="dish-icon">&#127858;</div>
-                        <div class="dish-name">${d.dish_name}</div>
-                        <div class="dish-meta">
-                            <span class="dish-price">$${d.sale_price.toFixed(0)}</span>
-                            <span class="dish-profit ${profitClass}">${profitLabel}${d.margin_pct.toFixed(0)}%</span>
-                        </div>
-                        <div class="dish-meta">
-                            <span class="dish-cost">Costo: $${d.cost_total.toFixed(0)}</span>
-                        </div>
-                        ${hasStockIssue ? '<div class="dish-stock-warn">&#9888; Stock insuficiente</div>' : ''}
-                        <div class="qty-selector">
-                            <button onclick="event.stopPropagation();updateQty(${d.id}, ${qty - 1})">−</button>
-                            <span>${qty}</span>
-                            <button onclick="event.stopPropagation();updateQty(${d.id}, ${qty + 1})">+</button>
-                        </div>
-                    </div>`;
-                });
-                html += `</div></div>`;
+            filtered.forEach(d => {
+                const inTicket = ticket.find(t => t.id === d.id);
+                const qty = inTicket ? inTicket.qty : 0;
+                const profitClass = d.profit >= 0 ? 'profit-positive' : 'profit-negative';
+                const profitLabel = d.profit >= 0 ? '+' : '';
+                const hasStockIssue = d.recipe_details && d.recipe_details.some(r => r.current_stock < r.quantity_grams);
+                html += '<div class="pos-dish">' +
+                    '<div class="dish-name">' + d.dish_name + '</div>' +
+                    '<div class="dish-meta"><span class="dish-price">$' + d.sale_price.toFixed(0) + '</span><span class="dish-profit ' + profitClass + '">' + profitLabel + d.margin_pct.toFixed(0) + '%</span></div>' +
+                    '<div class="dish-meta"><span class="dish-cost">Costo $' + d.cost_total.toFixed(0) + '</span></div>' +
+                    (hasStockIssue ? '<div class="dish-stock-warn">&#9888; Stock insuficiente</div>' : '') +
+                    '<div class="qty-selector">' +
+                    '<button onclick="event.stopPropagation();updateQty(' + d.id + ',' + (qty - 1) + ')">&minus;</button>' +
+                    '<span>' + qty + '</span>' +
+                    '<button onclick="event.stopPropagation();updateQty(' + d.id + ',' + (qty + 1) + ')">+</button>' +
+                    '</div></div>';
             });
             grid.innerHTML = html;
+        }
+
+        function selectCategory(cat) {
+            selectedCategory = cat;
+            renderDishes();
         }
 
         function updateQty(dishId, newQty) {
