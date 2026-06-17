@@ -575,28 +575,25 @@ def analytics():
 
     ingValues.sort(key=lambda x: x['value'], reverse=True)
 
-    recs = api_req('GET', T_RECIPES)
-    recipes = recs.json() if recs.status_code == 200 else []
+    dishes = api_req('GET', T_MENU)
+    dish_list = dishes.json() if dishes.status_code == 200 else []
 
     recipeCosts = []
-    for recipe in recipes:
-        r2 = api_req('GET', T_RECIPE_INGS,
-                     params={'recipe_id': 'eq.' + str(recipe['recipe_id']),
-                             'select': 'ingredient_name,quantity_needed,measure,ingredient_table(count,cost)'})
-        items = r2.json()
-        costTotal = sum(item['quantity_needed'] * item['ingredient_table']['cost'] for item in items)
+    for dish in dish_list:
+        dish_id = dish['id']
+        raw_total, final_total, enriched = _compute_dish_cost(dish_id)
         recipeCosts.append({
-            'recipe_id': recipe['recipe_id'],
-            'recipe_name': recipe['recipe_name'],
-            'cost': round(costTotal, 2),
-            'ingredient_count': len(items),
+            'recipe_id': dish_id,
+            'recipe_name': dish.get('title', dish.get('name', 'Sin nombre')),
+            'cost': raw_total,
+            'ingredient_count': len(enriched),
         })
 
     recipeCosts.sort(key=lambda x: x['cost'], reverse=True)
 
     return jsonify({
         'ingredient_count': len(ingredients),
-        'recipe_count': len(recipes),
+        'recipe_count': len(dish_list),
         'total_inventory_value': round(value, 2),
         'health': {
             'ok': okCount,
