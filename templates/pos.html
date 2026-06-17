@@ -20,14 +20,64 @@
             background: var(--pos-bg);
         }
         .pos-layout {
-            display: grid;
-            grid-template-columns: 1fr 380px;
-            gap: 24px;
-            align-items: start;
             margin-top: 24px;
         }
-        @media (max-width: 1024px) {
-            .pos-layout { grid-template-columns: 1fr; }
+
+        /* Floating ticket button */
+        .ticket-fab {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--pos-primary);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            padding: 12px 24px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(26,82,118,0.3);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+        .ticket-fab:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(26,82,118,0.4); }
+        .ticket-fab .badge {
+            background: var(--pos-accent);
+            color: white;
+            border-radius: 50%;
+            width: 24px; height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85em;
+            font-weight: 700;
+        }
+        .ticket-fab.hidden { display: none; }
+
+        /* Ticket Modal */
+        .ticket-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 999;
+            align-items: center;
+            justify-content: center;
+        }
+        .ticket-overlay.show { display: flex; }
+        .ticket-modal {
+            background: white;
+            border-radius: 16px;
+            width: 460px;
+            max-width: 94vw;
+            max-height: 90vh;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.15);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
         }
 
         /* Category Tabs */
@@ -154,14 +204,6 @@
         }
 
         /* Ticket Panel */
-        .ticket-panel {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 4px 24px rgba(0,0,0,0.06);
-            position: sticky;
-            top: 88px;
-            overflow: hidden;
-        }
         .ticket-header {
             background: var(--pos-primary);
             color: white;
@@ -172,11 +214,22 @@
             justify-content: space-between;
             align-items: center;
         }
+        .ticket-header .close-btn {
+            background: none;
+            border: none;
+            color: rgba(255,255,255,0.7);
+            font-size: 1.4em;
+            cursor: pointer;
+            padding: 0 4px;
+            line-height: 1;
+        }
+        .ticket-header .close-btn:hover { color: white; }
         .ticket-header span { opacity: 0.8; font-size: 0.85em; }
         .ticket-body {
             padding: 12px 16px;
             max-height: 400px;
             overflow-y: auto;
+            flex: 1;
         }
         .ticket-empty {
             text-align: center;
@@ -355,9 +408,36 @@
 
             <div id="posDishGrid">
                 <div class="cat-tabs" id="catTabs"></div>
-                <div class="pos-section-title" id="posSectionTitle">Cargando platos...</div>
+                <div class="pos-section-title" id="posSectionTitle">Selecciona una categoría</div>
                 <div class="pos-grid" id="posGrid"></div>
             </div>
+
+            <!-- Ticket Modal -->
+            <div class="ticket-overlay" id="ticketOverlay">
+                <div class="ticket-modal">
+                    <div class="ticket-header">
+                        &#128221; Ticket
+                        <button class="close-btn" onclick="closeTicketModal()">&times;</button>
+                    </div>
+                    <div class="ticket-body" id="ticketBody">
+                        <div class="ticket-empty">Selecciona platos para armar el ticket</div>
+                    </div>
+                    <div class="ticket-summary" id="ticketSummary" style="display:none;">
+                        <div class="ts-row"><span>Costo MP</span><span id="tsCost">$0</span></div>
+                        <div class="ts-row profit" id="tsProfitRow"><span>Ganancia</span><span id="tsProfit">$0</span></div>
+                        <div class="ts-row total"><span>Total Venta</span><span id="tsTotal">$0</span></div>
+                    </div>
+                    <div class="ticket-actions">
+                        <button class="btn-charge" id="btnCharge" disabled onclick="chargeSale()">&#128179; Cobrar</button>
+                        <button class="btn-clear" onclick="clearTicket()">&#128465; Limpiar ticket</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Floating ticket button -->
+            <button class="ticket-fab hidden" id="ticketFab" onclick="openTicketModal()">
+                &#128221; Ver Ticket <span class="badge" id="ticketFabCount">0</span>
+            </button>
 
             <div class="ticket-panel">
                 <div class="ticket-header">
@@ -492,30 +572,29 @@
         function renderTicket() {
             const body = document.getElementById('ticketBody');
             const summary = document.getElementById('ticketSummary');
-            const count = document.getElementById('ticketCount');
+            const count = document.getElementById('ticketFabCount');
+            const fab = document.getElementById('ticketFab');
             const btn = document.getElementById('btnCharge');
 
             if (!ticket.length) {
                 body.innerHTML = '<div class="ticket-empty">Selecciona platos para armar el ticket</div>';
                 summary.style.display = 'none';
-                count.textContent = '0 items';
+                fab.classList.add('hidden');
                 btn.disabled = true;
                 return;
             }
 
-            count.textContent = ticket.reduce((s, t) => s + t.qty, 0) + ' items';
+            const totalQty = ticket.reduce((s, t) => s + t.qty, 0);
+            count.textContent = totalQty;
+            fab.classList.remove('hidden');
             btn.disabled = false;
 
             let html = '';
             ticket.forEach(t => {
-                html += `<div class="ticket-item">
-                    <div class="ti-left">
-                        <div class="ti-name">${t.name}</div>
-                        <div class="ti-qty">x${t.qty}</div>
-                    </div>
-                    <div class="ti-price">$${(t.price * t.qty).toFixed(0)}</div>
-                    <button class="ti-remove" onclick="updateQty(${t.id}, 0)">&times;</button>
-                </div>`;
+                html += '<div class="ticket-item">' +
+                    '<div class="ti-left"><div class="ti-name">' + t.name + '</div><div class="ti-qty">x' + t.qty + '</div></div>' +
+                    '<div class="ti-price">$' + (t.price * t.qty).toFixed(0) + '</div>' +
+                    '<button class="ti-remove" onclick="updateQty(' + t.id + ', 0)">&times;</button></div>';
             });
             body.innerHTML = html;
 
@@ -530,6 +609,9 @@
             prRow.className = 'ts-row ' + (profit >= 0 ? 'profit' : 'loss');
             summary.style.display = 'block';
         }
+
+        function openTicketModal() { document.getElementById('ticketOverlay').classList.add('show'); }
+        function closeTicketModal() { document.getElementById('ticketOverlay').classList.remove('show'); }
 
         function clearTicket() {
             if (ticket.length && !confirm('Limpiar ticket?')) return;
@@ -557,6 +639,7 @@
                 if (res.ok) {
                     showToast('&#9989; ' + data.message);
                     ticket = [];
+                    closeTicketModal();
                     renderDishes();
                     renderTicket();
                     const tRes = await fetch('/api/pos/today');
