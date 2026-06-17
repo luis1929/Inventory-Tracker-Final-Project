@@ -36,6 +36,7 @@ T_RECIPE_INGS = 'recipe_ingredients_table'
 T_USERS = 'user_profiles'
 T_MENU = 'menu_board'
 T_MENU_RECIPE = 'menu_recipe_items'
+T_NUTRITION = 'nutrition_table'
 
 
 def get_api_config():
@@ -707,10 +708,26 @@ def _cost_multiplier(measure):
 def _compute_dish_cost(dish_id):
     r = api_req('GET', T_MENU_RECIPE, params={'dish_id': 'eq.' + str(dish_id)})
     if r.status_code != 200:
-        return 0, 0, []
+        return 0, 0, [], {}
     items = r.json()
     raw_total = 0.0
     enriched = []
+
+    # Collect ingredient names for batch nutrition fetch
+    ing_names = list(set(it['ingredient_name'] for it in items))
+    nutrition_map = {}
+    if ing_names:
+        nf = 'in.(' + ','.join(n.replace("'", "''") for n in ing_names) + ')'
+        rn = api_req('GET', T_NUTRITION, params={'ingredient_name': nf})
+        if rn.status_code == 200:
+            for n in rn.json():
+                nutrition_map[n['ingredient_name']] = n
+
+    nut = {
+        'protein_g': 0.0, 'fat_g': 0.0, 'carbs_g': 0.0,
+        'fiber_g': 0.0, 'sodium_mg': 0.0, 'calories': 0.0,
+    }
+
     for item in items:
         qty = float(item.get('quantity_grams', 0))
         if item.get('unit_cost') is not None and float(item.get('unit_cost', 0)) > 0:
@@ -735,6 +752,15 @@ def _compute_dish_cost(dish_id):
             'unit_cost': round(unit_cost, 4),
             'line_cost': round(line_cost, 2),
         })
+        nd = nutrition_map.get(item['ingredient_name'])
+        if nd:
+            factor = qty / 100.0
+            nut['protein_g'] += float(nd.get('protein_g', 0)) * factor
+            nut['fat_g'] += float(nd.get('fat_g', 0)) * factor
+            nut['carbs_g'] += float(nd.get('carbs_g', 0)) * factor
+            nut['fiber_g'] += float(nd.get('fiber_g', 0)) * factor
+            nut['sodium_mg'] += float(nd.get('sodium_mg', 0)) * factor
+            nut['calories'] += float(nd.get('total_calories', 0)) * factor
     raw_total = round(raw_total, 2)
 
     # Get overhead from menu_board
@@ -745,7 +771,7 @@ def _compute_dish_cost(dish_id):
 
     final_total = round(raw_total + overhead, 2)
     api_req('PATCH', T_MENU, data={'cost_total': final_total}, params={'id': 'eq.' + str(dish_id)})
-    return raw_total, final_total, enriched
+    return raw_total, final_total, enriched, nut
 
 
 
@@ -770,6 +796,28 @@ def get_suppliers():
     except Exception:
         pass
     return jsonify(suppliers)
+
+
+@app.route('/api/nutrition', methods=['GET'])
+@api_auth_required
+def get_nutrition():
+    r = api_req('GET', T_NUTRITION, params={'order': 'ingredient_name.asc'})
+    if r.status_code != 200:
+        return jsonify({'error': r.text}), r.status_code
+    return jsonify(r.json())
+
+
+@app.route('/api/nutrition', methods=['POST'])
+@api_auth_required
+def upsert_nutrition():
+    data = request.get_json()
+    if not data or not isinstance(data, list):
+        return jsonify({'error': 'Envia un array de registros'}), 400
+    h = {'Prefer': 'resolution=merge-duplicates'}
+    r = api_req('POST', T_NUTRITION, data=data, extra_headers=h)
+    if r.status_code not in (200, 201):
+        return jsonify({'error': r.text}), r.status_code
+    return jsonify({'message': f'{len(data)} registros guardados'})
 
 
 @app.route('/api/ingredients/names', methods=['GET'])
@@ -827,13 +875,33 @@ def get_menu():
                 mult = _cost_multiplier(ing.get('measure', 'g'))
                 ing_cost_map[ing['name']] = float(ing['cost']) * mult
 
+    # Batch-fetch nutrition data for all ingredients in recipes
+    all_ing_names = set()
+    for items in items_by_dish.values():
+        for item in items:
+            all_ing_names.add(item['ingredient_name'])
+    nutrition_map = {}
+    if all_ing_names:
+        nf = 'in.(' + ','.join(n.replace("'", "''") for n in all_ing_names) + ')'
+        rn = api_req('GET', T_NUTRITION, params={'ingredient_name': nf})
+        if rn.status_code == 200:
+            for n in rn.json():
+                nutrition_map[n['ingredient_name']] = n
+
     for dish in dishes:
         did = dish['id']
         items = items_by_dish.get(did, [])
         raw_total = 0.0
         enriched = []
+        # Nutrition accumulators
+        nut = {
+            'protein_g': 0.0, 'fat_g': 0.0, 'carbs_g': 0.0,
+            'fiber_g': 0.0, 'sodium_mg': 0.0, 'calories': 0.0,
+        }
+        total_recipe_g = 0.0
         for item in items:
             qty = float(item.get('quantity_grams', 0))
+            total_recipe_g += qty
             if item.get('unit_cost') is not None and float(item.get('unit_cost', 0)) > 0:
                 unit_cost = float(item['unit_cost'])
             else:
@@ -848,12 +916,24 @@ def get_menu():
                 'unit_cost': round(unit_cost, 4),
                 'line_cost': round(line_cost, 2),
             })
+            # Accumulate nutrition (data is per 100g)
+            nd = nutrition_map.get(item['ingredient_name'])
+            if nd:
+                factor = qty / 100.0
+                nut['protein_g'] += float(nd.get('protein_g', 0)) * factor
+                nut['fat_g'] += float(nd.get('fat_g', 0)) * factor
+                nut['carbs_g'] += float(nd.get('carbs_g', 0)) * factor
+                nut['fiber_g'] += float(nd.get('fiber_g', 0)) * factor
+                nut['sodium_mg'] += float(nd.get('sodium_mg', 0)) * factor
+                nut['calories'] += float(nd.get('total_calories', 0)) * factor
         raw_total = round(raw_total, 2)
         overhead = float(dish.get('overhead_cost', 0))
         final_total = round(raw_total + overhead, 2)
         dish['cost_total'] = final_total
         dish['raw_cost'] = raw_total
         dish['recipe_count'] = len(enriched)
+        dish['nutrition_computed'] = nut
+        dish['total_recipe_g'] = round(total_recipe_g, 1)
 
     return jsonify(dishes)
 
@@ -912,8 +992,8 @@ def delete_menu_item(item_id):
 @app.route('/api/menu/<int:dish_id>/recipe', methods=['GET'])
 @api_auth_required
 def get_menu_recipe(dish_id):
-    _, _, enriched = _compute_dish_cost(dish_id)
-    return jsonify(enriched)
+    _, _, enriched, nut = _compute_dish_cost(dish_id)
+    return jsonify({'items': enriched, 'nutrition_computed': nut})
 
 
 @app.route('/api/menu/<int:dish_id>/recipe', methods=['POST'])

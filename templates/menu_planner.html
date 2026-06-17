@@ -374,6 +374,19 @@
             outline: none;
             border-color: var(--secondary);
         }
+        .nutrition-grid .nut-auto { border-left: 3px solid #3498db; padding-left: 8px; }
+        .nutrition-grid .nut-manual { border-left: 3px solid #95a5a6; padding-left: 8px; }
+        .auto-badge {
+            display: inline-block;
+            font-size: 0.65em;
+            background: #3498db;
+            color: white;
+            padding: 1px 6px;
+            border-radius: 3px;
+            text-transform: lowercase;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
         .ingredient-autocomplete {
             position: relative;
             flex: 3;
@@ -490,17 +503,27 @@
 
             <div class="modal-section">
                 <h3>&#128202; Nutricion (por porcion)</h3>
+                <div style="margin-bottom:12px;font-size:0.85em;color:var(--text-light);background:#eaf2f8;padding:8px 12px;border-radius:6px;">
+                    &#128200; Valores <strong>calculados</strong> automaticamente segun los ingredientes de la receta.
+                    Los campos editables permiten sobrescribir manualmente.
+                </div>
                 <div class="nutrition-grid">
-                    <div class="nut-item"><label>Peso porcion (g)</label><input type="number" id="fld_portion" min="0" step="10"></div>
+                    <div class="nut-item"><label>Peso porcion (g)</label><input type="number" id="fld_portion" min="0" step="10" oninput="recalcNutritionFromPortion()"></div>
                     <div class="nut-item"><label>Costo MP (auto)</label><input type="number" id="fld_rawcost" readonly style="background:#f5f5f5;"></div>
                     <div class="nut-item"><label>Overhead ($)</label><input type="number" id="fld_overhead" min="0" step="0.01"></div>
                     <div class="nut-item"><label>Costo Final</label><input type="number" id="fld_cost" min="0" step="0.01"></div>
-                    <div class="nut-item"><label>Proteina (g)</label><input type="number" id="fld_protein" min="0" step="0.1"></div>
-                    <div class="nut-item"><label>Calorias</label><input type="number" id="fld_calories" min="0" step="0.1"></div>
-                    <div class="nut-item"><label>Carbohidratos (g)</label><input type="number" id="fld_carbs" min="0" step="0.1"></div>
-                    <div class="nut-item"><label>Grasa (g)</label><input type="number" id="fld_fat" min="0" step="0.1"></div>
-                    <div class="nut-item"><label>Fibra (g)</label><input type="number" id="fld_fiber" min="0" step="0.1"></div>
-                    <div class="nut-item"><label>Sodio (mg)</label><input type="number" id="fld_sodium" min="0" step="0.1"></div>
+                    <div class="nut-item nut-auto"><label>Proteina (g) <span class="auto-badge">calc</span></label><input type="number" id="fld_protein_auto" readonly style="background:#eaf2f8;" placeholder="—"></div>
+                    <div class="nut-item nut-auto"><label>Calorias <span class="auto-badge">calc</span></label><input type="number" id="fld_calories_auto" readonly style="background:#eaf2f8;" placeholder="—"></div>
+                    <div class="nut-item nut-auto"><label>Carbohidratos (g) <span class="auto-badge">calc</span></label><input type="number" id="fld_carbs_auto" readonly style="background:#eaf2f8;" placeholder="—"></div>
+                    <div class="nut-item nut-auto"><label>Grasa (g) <span class="auto-badge">calc</span></label><input type="number" id="fld_fat_auto" readonly style="background:#eaf2f8;" placeholder="—"></div>
+                    <div class="nut-item nut-auto"><label>Fibra (g) <span class="auto-badge">calc</span></label><input type="number" id="fld_fiber_auto" readonly style="background:#eaf2f8;" placeholder="—"></div>
+                    <div class="nut-item nut-auto"><label>Sodio (mg) <span class="auto-badge">calc</span></label><input type="number" id="fld_sodium_auto" readonly style="background:#eaf2f8;" placeholder="—"></div>
+                    <div class="nut-item nut-manual"><label>Proteina (g) manual</label><input type="number" id="fld_protein" min="0" step="0.1" placeholder="—"></div>
+                    <div class="nut-item nut-manual"><label>Calorias manual</label><input type="number" id="fld_calories" min="0" step="0.1" placeholder="—"></div>
+                    <div class="nut-item nut-manual"><label>Carbohidratos (g) manual</label><input type="number" id="fld_carbs" min="0" step="0.1" placeholder="—"></div>
+                    <div class="nut-item nut-manual"><label>Grasa (g) manual</label><input type="number" id="fld_fat" min="0" step="0.1" placeholder="—"></div>
+                    <div class="nut-item nut-manual"><label>Fibra (g) manual</label><input type="number" id="fld_fiber" min="0" step="0.1" placeholder="—"></div>
+                    <div class="nut-item nut-manual"><label>Sodio (mg) manual</label><input type="number" id="fld_sodium" min="0" step="0.1" placeholder="—"></div>
                 </div>
                 <div style="margin-top: 12px; display: flex; gap: 8px;">
                     <button onclick="saveNutrition()">Guardar Nutricion</button>
@@ -719,17 +742,33 @@
         async function loadRecipeItems(dishId) {
             try {
                 const res = await fetch('/api/menu/' + dishId + '/recipe');
-                const items = await res.json();
+                const data = await res.json();
+                const items = data.items || data;
+                const nutComp = data.nutrition_computed || null;
+                currentRecipeItems = items;
+                currentNutritionComputed = nutComp;
                 renderRecipeItems(items);
                 const rawCost = items.reduce((s, it) => s + (it.line_cost || 0), 0);
-                // Load nutrition fields
                 const dish = menuData.find(i => i.id === dishId);
                 const overhead = dish && dish.overhead_cost ? parseFloat(dish.overhead_cost) : 0;
                 if (dish) {
-                    setField('fld_portion', dish.portion_weight_g || 150);
+                    const totalG = items.reduce((s, it) => s + it.quantity_grams, 0);
+                    const portion = dish.portion_weight_g || 150;
+                    setField('fld_portion', portion);
                     setField('fld_rawcost', rawCost.toFixed(2));
                     setField('fld_overhead', overhead);
                     setField('fld_cost', dish.cost_total || (rawCost + overhead));
+                    // Auto-computed nutrition (readonly) — adjust for portion size
+                    if (nutComp && totalG > 0) {
+                        const ratio = portion / totalG;
+                        setField('fld_protein_auto', (nutComp.protein_g * ratio).toFixed(1));
+                        setField('fld_calories_auto', (nutComp.calories * ratio).toFixed(0));
+                        setField('fld_carbs_auto', (nutComp.carbs_g * ratio).toFixed(1));
+                        setField('fld_fat_auto', (nutComp.fat_g * ratio).toFixed(1));
+                        setField('fld_fiber_auto', (nutComp.fiber_g * ratio).toFixed(1));
+                        setField('fld_sodium_auto', (nutComp.sodium_mg * ratio).toFixed(0));
+                    }
+                    // Manually entered (editable)
                     setField('fld_protein', dish.protein_g || 0);
                     setField('fld_calories', dish.calories || 0);
                     setField('fld_carbs', dish.carbs_g || 0);
@@ -747,6 +786,30 @@
             const el = document.getElementById(id);
             if (el) el.value = val;
         }
+
+        function getField(id) {
+            const el = document.getElementById(id);
+            return el ? parseFloat(el.value) || 0 : 0;
+        }
+
+        function recalcNutritionFromPortion() {
+            const portion = getField('fld_portion');
+            const items = currentRecipeItems || [];
+            const totalG = items.reduce((s, it) => s + it.quantity_grams, 0);
+            const nutComp = currentNutritionComputed;
+            if (nutComp && totalG > 0 && portion > 0) {
+                const ratio = portion / totalG;
+                setField('fld_protein_auto', (nutComp.protein_g * ratio).toFixed(1));
+                setField('fld_calories_auto', (nutComp.calories * ratio).toFixed(0));
+                setField('fld_carbs_auto', (nutComp.carbs_g * ratio).toFixed(1));
+                setField('fld_fat_auto', (nutComp.fat_g * ratio).toFixed(1));
+                setField('fld_fiber_auto', (nutComp.fiber_g * ratio).toFixed(1));
+                setField('fld_sodium_auto', (nutComp.sodium_mg * ratio).toFixed(0));
+            }
+        }
+
+        let currentRecipeItems = [];
+        let currentNutritionComputed = null;
 
         function renderRecipeItems(items) {
             const tbody = document.getElementById('recipeBody');
