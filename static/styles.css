@@ -42,7 +42,7 @@ body {
 }
 
 .nav-inner {
-    max-width: 1200px;
+    max-width: 1600px;
     margin: 0 auto;
     display: flex;
     align-items: center;
@@ -126,7 +126,7 @@ body {
 
 /* Container */
 .container {
-    max-width: 1200px;
+    max-width: 1600px;
     margin: 0 auto;
     padding: 0 24px;
 }
@@ -152,7 +152,7 @@ body {
     position: relative;
     z-index: 1;
     text-align: center;
-    max-width: 700px;
+    max-width: 900px;
     margin: 0 auto;
 }
 
@@ -193,7 +193,7 @@ body {
 }
 
 .stats-inner {
-    max-width: 1200px;
+    max-width: 1600px;
     margin: 0 auto;
     padding: 0 24px;
     display: grid;
@@ -228,14 +228,14 @@ body {
 .dashboard-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 20px;
-    padding: 40px 0;
+    gap: 16px;
+    padding: 24px 0;
 }
 
 .dashboard-card {
     background: var(--white);
     border-radius: var(--radius);
-    padding: 28px;
+    padding: 20px;
     text-decoration: none;
     color: var(--text);
     box-shadow: var(--shadow);
@@ -319,7 +319,7 @@ body {
 .content-card {
     background: var(--white);
     border-radius: var(--radius);
-    padding: 28px;
+    padding: 20px;
     box-shadow: var(--shadow);
     margin-bottom: 20px;
     border: 1px solid rgba(212, 163, 83, 0.1);
@@ -327,10 +327,10 @@ body {
 
 .content-card h2 {
     font-family: 'Playfair Display', serif;
-    font-size: 1.4em;
+    font-size: 1.3em;
     color: var(--dark);
-    margin-bottom: 20px;
-    padding-bottom: 12px;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
     border-bottom: 2px solid var(--cream-dark);
 }
 
@@ -469,7 +469,7 @@ tr:hover td { background: rgba(212, 163, 83, 0.05); }
 .recipe-card {
     background: var(--white);
     border-radius: var(--radius);
-    padding: 20px 24px;
+    padding: 16px 20px;
     border: 1px solid rgba(212, 163, 83, 0.1);
     transition: all 0.3s;
 }
@@ -555,11 +555,11 @@ tr:hover td { background: rgba(212, 163, 83, 0.05); }
 
 .modal-content {
     background: var(--white);
-    padding: 32px;
+    padding: 28px;
     border-radius: var(--radius);
-    max-width: 700px;
-    width: 92%;
-    max-height: 85vh;
+    max-width: 1000px;
+    width: 95%;
+    max-height: 90vh;
     overflow-y: auto;
     position: relative;
     box-shadow: 0 20px 60px rgba(0,0,0,0.3);
