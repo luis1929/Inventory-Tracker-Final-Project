@@ -176,7 +176,11 @@
 
         async function deleteIngredient(name) {
             if (!confirm('Eliminar "' + name + '" del inventario?')) return;
-            const res = await fetch('/api/ingredients/' + encodeURIComponent(name), { method: 'DELETE' });
+            const res = await fetch('/api/ingredients/delete', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: name}),
+            });
             const data = await res.json();
             showMessage(data.error || data.message, res.ok ? 'success' : 'error');
             if (res.ok) loadInventory();

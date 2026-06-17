@@ -3,6 +3,7 @@ import sys
 import json
 import uuid
 import requests
+from urllib.parse import quote
 from datetime import timedelta
 from functools import wraps
 from dotenv import load_dotenv
@@ -326,9 +327,25 @@ def add_ingredient():
     return jsonify({'message': data['name'] + ' agregado/actualizado'})
 
 
+@app.route('/api/ingredients/delete', methods=['POST'])
+@api_auth_required
+def delete_ingredient_post():
+    data = request.get_json()
+    if not data or not data.get('name'):
+        return jsonify({'error': 'Nombre requerido'}), 400
+    name = data['name']
+    r = api_req('DELETE', T_INGS, params={'name': 'eq.' + name},
+                extra_headers={'Prefer': 'return=representation'})
+    if r.status_code == 200 and r.json():
+        return jsonify({'message': name + ' eliminado'})
+    return jsonify({'error': 'Ingrediente no encontrado'}), 404
+
+
 @app.route('/api/ingredients/<name>', methods=['DELETE'])
 @api_auth_required
 def delete_ingredient(name):
+    from urllib.parse import unquote
+    name = unquote(name)
     r = api_req('DELETE', T_INGS, params={'name': 'eq.' + name},
                 extra_headers={'Prefer': 'return=representation'})
     if r.status_code == 200 and r.json():
