@@ -521,10 +521,10 @@ def export_ingredients():
     if r.status_code != 200:
         return jsonify({'error': r.text}), r.status_code
     data = r.json()
-    csv = 'Nombre,Unidad,Cantidad,Costo/Unidad,Valor Total\n'
+    csv = 'Clasificacion,Producto,Marca,Proveedor,Presentacion,Unidad,Cantidad,Costo/Unidad,Valor Total,Observacion\n'
     for ing in data:
         total = parseFloat(ing['count']) * parseFloat(ing['cost'])
-        csv += f"{ing['name']},{ing['measure']},{ing['count']},{ing['cost']},{total}\n"
+        csv += f"{ing.get('classification','')},{ing['name']},{ing.get('brand','')},{ing.get('supplier','')},{ing.get('presentation','')},{ing['measure']},{ing['count']},{ing['cost']},{total},{ing.get('notes','')}\n"
     return csv, 200, {'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename=inventario.csv'}
 
 
@@ -672,6 +672,11 @@ def run_migration():
 
     sql = '''
     ALTER TABLE ingredient_table ADD COLUMN IF NOT EXISTS user_id UUID DEFAULT auth.uid();
+    ALTER TABLE ingredient_table ADD COLUMN IF NOT EXISTS classification TEXT DEFAULT '';
+    ALTER TABLE ingredient_table ADD COLUMN IF NOT EXISTS brand TEXT DEFAULT '';
+    ALTER TABLE ingredient_table ADD COLUMN IF NOT EXISTS supplier TEXT DEFAULT '';
+    ALTER TABLE ingredient_table ADD COLUMN IF NOT EXISTS presentation TEXT DEFAULT '';
+    ALTER TABLE ingredient_table ADD COLUMN IF NOT EXISTS notes TEXT DEFAULT '';
     ALTER TABLE recipe_table ADD COLUMN IF NOT EXISTS user_id UUID DEFAULT auth.uid();
     ALTER TABLE recipe_ingredients_table ADD COLUMN IF NOT EXISTS user_id UUID DEFAULT auth.uid();
     CREATE TABLE IF NOT EXISTS user_profiles (

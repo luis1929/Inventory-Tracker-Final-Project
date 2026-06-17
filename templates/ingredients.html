@@ -41,11 +41,22 @@
             <h2>&#10133; Agregar / Actualizar Ingrediente</h2>
             <form id="ingredientForm">
                 <div class="form-row">
-                    <input type="text" id="ingName" placeholder="Nombre del ingrediente" required>
-                    <input type="text" id="ingMeasure" placeholder="Unidad (lb, oz, l, kg, etc.)" required>
+                    <input type="text" id="ingClassification" placeholder="Clasificacion" style="flex:0.8;">
+                    <input type="text" id="ingName" placeholder="Nombre del producto *" required>
+                    <input type="text" id="ingBrand" placeholder="Marca" style="flex:0.7;">
+                </div>
+                <div class="form-row">
+                    <input type="text" id="ingSupplier" placeholder="Proveedor" style="flex:0.8;">
+                    <input type="text" id="ingPresentation" placeholder="Presentacion" style="flex:0.8;">
+                </div>
+                <div class="form-row">
+                    <input type="text" id="ingMeasure" placeholder="Unidad (lb, oz, l, kg)" required>
                     <input type="number" step="0.01" id="ingCount" placeholder="Cantidad en stock" required>
                     <input type="number" step="0.01" id="ingCost" placeholder="Costo por unidad ($)" required>
                     <button type="submit">&#128190; Guardar</button>
+                </div>
+                <div class="form-row">
+                    <input type="text" id="ingNotes" placeholder="Observaciones" style="flex:2;">
                 </div>
             </form>
             <div id="formMessage" class="message"></div>
@@ -106,7 +117,7 @@
             }
 
             const maxCount = Math.max(...data.map(i => i.count), 1);
-            let html = '<div class="table-wrapper"><table><thead><tr><th>Nombre</th><th>Unidad</th><th>Stock</th><th>Costo / Unidad</th><th>Valor Total</th><th>Acción</th></tr></thead><tbody>';
+            let html = '<div class="table-wrapper"><table><thead><tr><th>Clasificacion</th><th>Producto</th><th>Marca</th><th>Proveedor</th><th>Presentacion</th><th>Unidad</th><th>Stock</th><th>Costo / Unidad</th><th>Valor Total</th><th>Obs.</th><th>Acción</th></tr></thead><tbody>';
 
             data.forEach(ing => {
                 const totalValue = parseFloat(ing.count) * parseFloat(ing.cost);
@@ -116,11 +127,15 @@
                 const barBg = ing.count <= 0 ? '#fadbd8' : (ing.count < 5 ? '#fef9e7' : '#d5f5e3');
 
                 html += `<tr${low ? ' class="low-stock-row"' : ''}>
+                    <td style="font-size:0.85em;color:var(--text-light);">${ing.classification || '-'}</td>
                     <td><strong>${ing.name}</strong> ${low ? '<span title="Stock bajo">&#9888;</span>' : ''}</td>
+                    <td style="font-size:0.9em;">${ing.brand || '-'}</td>
+                    <td style="font-size:0.85em;">${ing.supplier || '-'}</td>
+                    <td style="font-size:0.85em;">${ing.presentation || '-'}</td>
                     <td>${ing.measure}</td>
                     <td>
                         <div style="display:flex;align-items:center;gap:8px;">
-                            <div style="flex:1;max-width:120px;height:8px;background:${barBg};border-radius:4px;">
+                            <div style="flex:1;max-width:100px;height:8px;background:${barBg};border-radius:4px;">
                                 <div style="height:100%;width:${pct}%;background:${barColor};border-radius:4px;transition:width 0.5s;"></div>
                             </div>
                             <span style="font-weight:600;font-size:0.9em;">${ing.count}</span>
@@ -128,6 +143,7 @@
                     </td>
                     <td>$${parseFloat(ing.cost).toFixed(2)}</td>
                     <td>$${totalValue.toFixed(2)}</td>
+                    <td style="font-size:0.85em;color:var(--text-light);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${ing.notes || ''}">${ing.notes || '-'}</td>
                     <td><button class="delete-btn" onclick="deleteIngredient('${ing.name}')">&#128465;</button></td>
                 </tr>`;
             });
@@ -163,9 +179,14 @@
             e.preventDefault();
             const data = {
                 name: document.getElementById('ingName').value.trim(),
+                classification: document.getElementById('ingClassification').value.trim(),
+                brand: document.getElementById('ingBrand').value.trim(),
+                supplier: document.getElementById('ingSupplier').value.trim(),
+                presentation: document.getElementById('ingPresentation').value.trim(),
                 measure: document.getElementById('ingMeasure').value.trim(),
                 count: parseFloat(document.getElementById('ingCount').value),
                 cost: parseFloat(document.getElementById('ingCost').value),
+                notes: document.getElementById('ingNotes').value.trim(),
             };
             const res = await fetch('/api/ingredients', {
                 method: 'POST',
