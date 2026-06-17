@@ -876,12 +876,12 @@ def get_menu():
                 ing_names.add(item['ingredient_name'])
     ing_cost_map = {}
     if ing_names:
-        name_filter = 'in.(' + ','.join(n.replace("'", "''") for n in ing_names) + ')'
-        ri = api_req('GET', T_INGS, params={'name': name_filter, 'select': 'name,cost,measure'})
+        ri = api_req('GET', T_INGS, params={'select': 'name,cost,measure'})
         if ri.status_code == 200:
             for ing in ri.json():
-                mult = _cost_multiplier(ing.get('measure', 'g'))
-                ing_cost_map[ing['name']] = float(ing['cost']) * mult
+                if ing['name'] in ing_names:
+                    mult = _cost_multiplier(ing.get('measure', 'g'))
+                    ing_cost_map[ing['name']] = float(ing['cost']) * mult
 
     # Batch-fetch nutrition data for all ingredients in recipes
     all_ing_names = set()
@@ -890,11 +890,11 @@ def get_menu():
             all_ing_names.add(item['ingredient_name'])
     nutrition_map = {}
     if all_ing_names:
-        nf = 'in.(' + ','.join(n.replace("'", "''") for n in all_ing_names) + ')'
-        rn = api_req('GET', T_NUTRITION, params={'ingredient_name': nf})
+        rn = api_req('GET', T_NUTRITION, params={'select': '*'})
         if rn.status_code == 200:
             for n in rn.json():
-                nutrition_map[n['ingredient_name']] = n
+                if n['ingredient_name'] in all_ing_names:
+                    nutrition_map[n['ingredient_name']] = n
 
     for dish in dishes:
         did = dish['id']
@@ -973,15 +973,16 @@ def get_pos_dishes():
             ing_names.add(item['ingredient_name'])
     ing_cost_map = {}
     if ing_names:
-        nf = 'in.(' + ','.join(n.replace("'", "''") for n in ing_names) + ')'
-        ri = api_req('GET', T_INGS, params={'name': nf, 'select': 'name,cost,measure,count'})
+        ri = api_req('GET', T_INGS, params={'select': 'name,cost,measure,count'})
         if ri.status_code == 200:
-            for ing in ri.json():
-                mult = _cost_multiplier(ing.get('measure', 'g'))
-                ing_cost_map[ing['name']] = {
-                    'cost': float(ing['cost']) * mult,
-                    'count': float(ing.get('count', 0)),
-                }
+            all_ings = ri.json()
+            for ing in all_ings:
+                if ing['name'] in ing_names:
+                    mult = _cost_multiplier(ing.get('measure', 'g'))
+                    ing_cost_map[ing['name']] = {
+                        'cost': float(ing['cost']) * mult,
+                        'count': float(ing.get('count', 0)),
+                    }
 
     result = []
     for dish in dishes:
