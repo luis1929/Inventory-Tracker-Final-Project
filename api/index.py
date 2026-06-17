@@ -991,28 +991,35 @@ def get_pos_dishes():
         recipe_details = []
         for item in items:
             qty = float(item.get('quantity_grams', 0))
-            ic = ing_cost_map.get(item['ingredient_name'], {})
-            unit_cost = ic.get('cost', 0)
+            if item.get('unit_cost') is not None and float(item.get('unit_cost', 0)) > 0:
+                unit_cost = float(item['unit_cost'])
+            else:
+                ic = ing_cost_map.get(item['ingredient_name'], {})
+                unit_cost = ic.get('cost', 0)
             line_cost = qty * unit_cost
             cost_total += line_cost
+            ic2 = ing_cost_map.get(item['ingredient_name'], {})
             recipe_details.append({
                 'ingredient_name': item['ingredient_name'],
                 'quantity_grams': qty,
                 'unit_cost': round(unit_cost, 4),
-                'current_stock': ic.get('count', 0),
+                'current_stock': ic2.get('count', 0),
             })
         sale_price = float(dish.get('sale_price', 0))
         overhead = float(dish.get('overhead_cost', 0))
-        cost_total = round(cost_total + overhead, 2)
+        recomputed = round(cost_total + overhead, 2)
+        stored_cost = float(dish.get('cost_total', 0) or 0)
+        # Use stored cost_total from menu_board when ingredient data is inconsistent
+        cost_final = stored_cost if stored_cost > 0 else recomputed
         result.append({
             'id': did,
             'category': dish.get('category', ''),
             'dish_name': dish.get('dish_name', ''),
             'sale_price': sale_price,
-            'cost_total': cost_total,
+            'cost_total': cost_final,
             'portion_weight_g': float(dish.get('portion_weight_g', 0) or 0),
-            'profit': round(sale_price - cost_total, 2),
-            'margin_pct': round(((sale_price - cost_total) / sale_price * 100) if sale_price else 0, 1),
+            'profit': round(sale_price - cost_final, 2),
+            'margin_pct': round(((sale_price - cost_final) / sale_price * 100) if sale_price else 0, 1),
             'recipe_count': len(recipe_details),
             'recipe_details': recipe_details,
         })
