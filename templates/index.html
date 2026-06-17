@@ -42,8 +42,8 @@
                 <div class="stat-label">&#127838; Ingredientes en Stock</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number" id="statRecipes">-</div>
-                <div class="stat-label">&#128221; Recetas Creadas</div>
+                <div class="stat-number" id="statDishes">-</div>
+                <div class="stat-label">&#128203; Platos en el Menú</div>
             </div>
             <div class="stat-card" id="lowStockCard" style="cursor:pointer;" onclick="document.getElementById('lowStockAlert').scrollIntoView({behavior:'smooth'})">
                 <div class="stat-number" id="statLowStock">-</div>
@@ -63,13 +63,6 @@
                 <div class="card-arrow">Ir a Ingredientes &rarr;</div>
             </a>
 
-            <a href="/recipes" class="dashboard-card">
-                <div class="card-icon recipes">&#128221;</div>
-                <h2>Gestión de Recetas</h2>
-                <p>Crea, edita y elimina recetas con ingredientes de tu inventario. Verifica disponibilidad al instante y calcula costos.</p>
-                <div class="card-arrow">Ir a Recetas &rarr;</div>
-            </a>
-
             <a href="/shopping-list" class="dashboard-card" style="border-left: 4px solid #e67e22;">
                 <div class="card-icon" style="background:linear-gradient(135deg,#fef9e7,#f5e6cc);">&#128722;</div>
                 <h2>Lista de Compras Global</h2>
@@ -86,15 +79,6 @@
                     <div>
                         <h2 style="margin-bottom:4px;">Nuevo Ingrediente</h2>
                         <p style="margin-bottom:0;">Agrega un ingrediente a tu despensa</p>
-                    </div>
-                </div>
-            </a>
-            <a href="/recipes" class="dashboard-card" style="border-left: 4px solid #d4a353;">
-                <div style="display:flex;align-items:center;gap:16px;margin-bottom:0;">
-                    <span style="font-size:2em;">&#10133;</span>
-                    <div>
-                        <h2 style="margin-bottom:4px;">Nueva Receta</h2>
-                        <p style="margin-bottom:0;">Crea una receta con tus ingredientes</p>
                     </div>
                 </div>
             </a>
@@ -124,16 +108,16 @@
     <script>
         async function loadDashboard() {
             try {
-                const [ingsRes, recsRes] = await Promise.all([
+                const [ingsRes, dishesRes] = await Promise.all([
                     fetch('/api/ingredients'),
-                    fetch('/api/recipes')
+                    fetch('/api/menu')
                 ]);
                 const ingredients = await ingsRes.json();
-                const recipes = await recsRes.json();
+                const dishes = await dishesRes.json();
 
                 const lowStockItems = ingredients.filter(i => i.count <= 0 || i.count < 5);
                 document.getElementById('statIngredients').textContent = ingredients.length;
-                document.getElementById('statRecipes').textContent = recipes.length;
+                document.getElementById('statDishes').textContent = dishes.length;
                 document.getElementById('statLowStock').textContent = lowStockItems.length;
 
                 // Low stock alert
