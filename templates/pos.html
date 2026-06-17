@@ -433,7 +433,6 @@
                 const cls = selectedCategory === c ? 'active' : '';
                 return '<button class="' + cls + '" onclick="selectCategory(\'' + c.replace(/'/g, "\\'") + '\')">' + c + ' (' + cats[c].length + ')</button>';
             }).join('');
-            tabHtml += '<button class="' + (selectedCategory === '__all__' ? 'active' : '') + '" onclick="selectCategory(\'__all__\')">Todos (' + dishes.length + ')</button>';
             document.getElementById('catTabs').innerHTML = tabHtml;
 
             const grid = document.getElementById('posGrid');
@@ -442,8 +441,8 @@
                 grid.innerHTML = '';
                 return;
             }
-            const filtered = selectedCategory === '__all__' ? dishes : (cats[selectedCategory] || []);
-            document.getElementById('posSectionTitle').textContent = (selectedCategory === '__all__' ? 'Todos los platos' : selectedCategory) + ' (' + filtered.length + ')';
+            const filtered = cats[selectedCategory] || [];
+            document.getElementById('posSectionTitle').textContent = selectedCategory + ' (' + filtered.length + ')';
 
             let html = '';
             filtered.forEach(d => {
