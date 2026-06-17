@@ -37,6 +37,8 @@ T_USERS = 'user_profiles'
 T_MENU = 'menu_board'
 T_MENU_RECIPE = 'menu_recipe_items'
 T_NUTRITION = 'nutrition_table'
+T_SALES = 'daily_sales'
+T_SALE_ITEMS = 'sale_items'
 
 
 def get_api_config():
@@ -838,6 +840,12 @@ def menu_planner_page():
     return render_template('menu_planner.html', user=session['user'])
 
 
+@app.route('/pos')
+@login_required
+def pos_page():
+    return render_template('pos.html', user=session['user'])
+
+
 @app.route('/api/menu', methods=['GET'])
 @api_auth_required
 def get_menu():
@@ -938,6 +946,218 @@ def get_menu():
     return jsonify(dishes)
 
 
+# ── POS / Landing Page ──
+
+@app.route('/api/pos/dishes', methods=['GET'])
+@api_auth_required
+def get_pos_dishes():
+    r = api_req('GET', T_MENU, params={'order': 'category.asc,sort_order.asc'})
+    if r.status_code != 200:
+        return jsonify({'error': r.text}), r.status_code
+    dishes = r.json()
+    if not dishes:
+        return jsonify([])
+
+    dish_ids = [d['id'] for d in dishes]
+    id_filter = 'in.(' + ','.join(str(i) for i in dish_ids) + ')'
+    rr = api_req('GET', T_MENU_RECIPE, params={'dish_id': id_filter})
+    all_items = rr.json() if rr.status_code == 200 else []
+
+    items_by_dish = {}
+    for item in all_items:
+        items_by_dish.setdefault(item['dish_id'], []).append(item)
+
+    ing_names = set()
+    for items in items_by_dish.values():
+        for item in items:
+            ing_names.add(item['ingredient_name'])
+    ing_cost_map = {}
+    if ing_names:
+        nf = 'in.(' + ','.join(n.replace("'", "''") for n in ing_names) + ')'
+        ri = api_req('GET', T_INGS, params={'name': nf, 'select': 'name,cost,measure,count'})
+        if ri.status_code == 200:
+            for ing in ri.json():
+                mult = _cost_multiplier(ing.get('measure', 'g'))
+                ing_cost_map[ing['name']] = {
+                    'cost': float(ing['cost']) * mult,
+                    'count': float(ing.get('count', 0)),
+                }
+
+    result = []
+    for dish in dishes:
+        did = dish['id']
+        items = items_by_dish.get(did, [])
+        cost_total = 0.0
+        recipe_details = []
+        for item in items:
+            qty = float(item.get('quantity_grams', 0))
+            ic = ing_cost_map.get(item['ingredient_name'], {})
+            unit_cost = ic.get('cost', 0)
+            line_cost = qty * unit_cost
+            cost_total += line_cost
+            recipe_details.append({
+                'ingredient_name': item['ingredient_name'],
+                'quantity_grams': qty,
+                'unit_cost': round(unit_cost, 4),
+                'current_stock': ic.get('count', 0),
+            })
+        sale_price = float(dish.get('sale_price', 0))
+        overhead = float(dish.get('overhead_cost', 0))
+        cost_total = round(cost_total + overhead, 2)
+        result.append({
+            'id': did,
+            'category': dish.get('category', ''),
+            'dish_name': dish.get('dish_name', ''),
+            'sale_price': sale_price,
+            'cost_total': cost_total,
+            'profit': round(sale_price - cost_total, 2),
+            'margin_pct': round(((sale_price - cost_total) / sale_price * 100) if sale_price else 0, 1),
+            'recipe_count': len(recipe_details),
+            'recipe_details': recipe_details,
+        })
+    return jsonify(result)
+
+
+@app.route('/api/pos/sell', methods=['POST'])
+@api_auth_required
+def record_sale():
+    data = request.get_json()
+    if not data or not isinstance(data.get('items'), list) or not data['items']:
+        return jsonify({'error': 'Envia lista de items'}), 400
+
+    items_data = data['items']
+
+    # Compute totals
+    total_sale = 0.0
+    total_cost = 0.0
+    total_profit = 0.0
+    line_items = []
+
+    for it in items_data:
+        dish_id = it.get('dish_id')
+        qty = int(it.get('quantity', 1))
+        if qty < 1: continue
+
+        rd = api_req('GET', T_MENU, params={'id': 'eq.' + str(dish_id)})
+        if rd.status_code != 200 or not rd.json():
+            continue
+        dish = rd.json()[0]
+        dish_name = dish.get('dish_name', '')
+        sale_price_unit = float(it.get('sale_price', dish.get('sale_price', 0)))
+
+        # Compute cost per unit from recipe
+        rr = api_req('GET', T_MENU_RECIPE, params={'dish_id': 'eq.' + str(dish_id)})
+        recipe_items = rr.json() if rr.status_code == 200 else []
+        cost_per_unit = 0.0
+        for ri in recipe_items:
+            q = float(ri.get('quantity_grams', 0))
+            if ri.get('unit_cost') is not None and float(ri.get('unit_cost', 0)) > 0:
+                uc = float(ri['unit_cost'])
+            else:
+                r2 = api_req('GET', T_INGS, params={'name': 'eq.' + ri['ingredient_name'], 'select': 'cost,measure'})
+                ingd = r2.json()
+                if ingd:
+                    c = float(ingd[0].get('cost', 0))
+                    m = ingd[0].get('measure', 'g')
+                    uc = c * _cost_multiplier(m)
+                else:
+                    uc = 0
+            cost_per_unit += q * uc
+        overhead = float(dish.get('overhead_cost', 0))
+        cost_per_unit = round(cost_per_unit + overhead, 2)
+
+        line_sale = round(sale_price_unit * qty, 2)
+        line_cost = round(cost_per_unit * qty, 2)
+        line_profit = round(line_sale - line_cost, 2)
+        total_sale += line_sale
+        total_cost += line_cost
+        total_profit += line_profit
+
+        line_items.append({
+            'dish_id': dish_id,
+            'dish_name': dish_name,
+            'quantity': qty,
+            'sale_price_unit': sale_price_unit,
+            'cost_per_unit': cost_per_unit,
+            'line_sale': line_sale,
+            'line_cost': line_cost,
+            'line_profit': line_profit,
+        })
+
+        # Deduct inventory: for each recipe ingredient, subtract qty_grams * qty_sold
+        for ri in recipe_items:
+            ing_name = ri['ingredient_name']
+            deduct_g = float(ri.get('quantity_grams', 0)) * qty
+            # Get current stock
+            rs = api_req('GET', T_INGS, params={'name': 'eq.' + ing_name, 'select': 'count'})
+            if rs.status_code == 200 and rs.json():
+                current = float(rs.json()[0].get('count', 0))
+                new_count = max(0, current - deduct_g)
+                api_req('PATCH', T_INGS, data={'count': new_count}, params={'name': 'eq.' + ing_name})
+
+    if not line_items:
+        return jsonify({'error': 'Sin items validos'}), 400
+
+    items_count = sum(it['quantity'] for it in line_items)
+
+    # Create sale record
+    sale_record = {
+        'total_sale': round(total_sale, 2),
+        'total_cost': round(total_cost, 2),
+        'total_profit': round(total_profit, 2),
+        'items_count': items_count,
+    }
+    r_create = api_req('POST', T_SALES, data=sale_record)
+    if r_create.status_code not in (200, 201):
+        return jsonify({'error': r_create.text}), r_create.status_code
+    sale_id = r_create.json()[0]['id']
+
+    # Insert line items
+    for li in line_items:
+        li['sale_id'] = sale_id
+    api_req('POST', T_SALE_ITEMS, data=line_items)
+
+    return jsonify({
+        'message': f'Venta registrada — {items_count} productos, $ {total_sale:.0f}',
+        'sale_id': sale_id,
+        'total_sale': round(total_sale, 2),
+        'total_cost': round(total_cost, 2),
+        'total_profit': round(total_profit, 2),
+    })
+
+
+@app.route('/api/pos/today', methods=['GET'])
+@api_auth_required
+def get_today_sales():
+    today = datetime.utcnow().strftime('%Y-%m-%d')
+    r = api_req('GET', T_SALES, params={'created_at': 'gte.' + today, 'order': 'created_at.desc'})
+    if r.status_code != 200:
+        return jsonify({'error': r.text}), r.status_code
+    sales = r.json()
+    summary = {
+        'total_sale': sum(float(s.get('total_sale', 0)) for s in sales),
+        'total_cost': sum(float(s.get('total_cost', 0)) for s in sales),
+        'total_profit': sum(float(s.get('total_profit', 0)) for s in sales),
+        'orders_count': len(sales),
+        'items_count': sum(int(s.get('items_count', 0)) for s in sales),
+    }
+    return jsonify({'sales': sales, 'summary': summary})
+
+
+@app.route('/api/pos/sale-price', methods=['PUT'])
+@api_auth_required
+def update_sale_price():
+    data = request.get_json()
+    dish_id = data.get('dish_id')
+    price = data.get('sale_price')
+    if not dish_id or price is None:
+        return jsonify({'error': 'dish_id y sale_price requeridos'}), 400
+    r = api_req('PATCH', T_MENU, data={'sale_price': float(price)}, params={'id': 'eq.' + str(dish_id)})
+    if r.status_code not in (200, 204):
+        return jsonify({'error': r.text}), r.status_code
+    return jsonify({'message': 'Precio actualizado'})
+
+
 @app.route('/api/menu', methods=['POST'])
 @api_auth_required
 def add_menu_item():
@@ -967,7 +1187,7 @@ def update_menu_item(item_id):
         return jsonify({'error': 'Datos requeridos'}), 400
 
     update = {}
-    for field in ('category', 'dish_name', 'sort_order', 'status'):
+    for field in ('category', 'dish_name', 'sort_order', 'status', 'sale_price'):
         if field in data:
             update[field] = data[field]
 

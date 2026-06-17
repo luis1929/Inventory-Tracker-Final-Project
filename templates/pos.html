@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Punto de Venta - KitchenMaster</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <style>
+        :root {
+            --pos-primary: #1a5276;
+            --pos-primary-light: #2e86c1;
+            --pos-accent: #f39c12;
+            --pos-success: #27ae60;
+            --pos-bg: #f0f4f8;
+            --pos-card-bg: #ffffff;
+            --pos-text: #2c3e50;
+            --pos-text-light: #7f8c8d;
+        }
+        body.pos-page {
+            background: var(--pos-bg);
+        }
+        .pos-layout {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 24px;
+            align-items: start;
+            margin-top: 24px;
+        }
+        @media (max-width: 1024px) {
+            .pos-layout { grid-template-columns: 1fr; }
+        }
+
+        /* Dish Grid */
+        .pos-category {
+            margin-bottom: 32px;
+        }
+        .pos-category h3 {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.3em;
+            color: var(--pos-primary);
+            margin-bottom: 12px;
+            padding-bottom: 6px;
+            border-bottom: 2px solid #d5e8f0;
+        }
+        .pos-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+        }
+        .pos-dish {
+            background: var(--pos-card-bg);
+            border-radius: 12px;
+            padding: 14px;
+            border: 1px solid #e8edf2;
+            transition: all 0.2s;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+        }
+        .pos-dish:hover {
+            box-shadow: 0 4px 16px rgba(26,82,118,0.1);
+            border-color: var(--pos-primary-light);
+            transform: translateY(-2px);
+        }
+        .pos-dish .dish-icon {
+            font-size: 2.2em;
+            margin-bottom: 4px;
+        }
+        .pos-dish .dish-name {
+            font-weight: 600;
+            font-size: 0.9em;
+            color: var(--pos-text);
+            flex: 1;
+        }
+        .pos-dish .dish-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 8px;
+            font-size: 0.85em;
+        }
+        .pos-dish .dish-price {
+            font-weight: 700;
+            color: var(--pos-primary);
+            font-size: 1.1em;
+        }
+        .pos-dish .dish-cost {
+            color: var(--pos-text-light);
+            font-size: 0.8em;
+        }
+        .pos-dish .dish-profit {
+            font-size: 0.75em;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+        .profit-positive { background: #d5f5e3; color: #1e8449; }
+        .profit-negative { background: #fadbd8; color: #c0392b; }
+        .pos-dish .qty-selector {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 10px;
+        }
+        .pos-dish .qty-selector button {
+            width: 30px; height: 30px;
+            border: 1px solid #d5e8f0;
+            border-radius: 50%;
+            background: white;
+            cursor: pointer;
+            font-size: 1.1em;
+            font-weight: 600;
+            color: var(--pos-primary);
+            transition: all 0.15s;
+        }
+        .pos-dish .qty-selector button:hover {
+            background: var(--pos-primary-light);
+            color: white;
+            border-color: var(--pos-primary-light);
+        }
+        .pos-dish .qty-selector span {
+            min-width: 28px;
+            text-align: center;
+            font-weight: 700;
+            font-size: 1em;
+        }
+        .pos-dish .dish-stock-warn {
+            font-size: 0.7em;
+            color: #e67e22;
+            margin-top: 4px;
+        }
+
+        /* Ticket Panel */
+        .ticket-panel {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+            position: sticky;
+            top: 88px;
+            overflow: hidden;
+        }
+        .ticket-header {
+            background: var(--pos-primary);
+            color: white;
+            padding: 16px 20px;
+            font-weight: 600;
+            font-size: 1em;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .ticket-header span { opacity: 0.8; font-size: 0.85em; }
+        .ticket-body {
+            padding: 12px 16px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .ticket-empty {
+            text-align: center;
+            color: var(--pos-text-light);
+            padding: 32px 0;
+            font-size: 0.9em;
+        }
+        .ticket-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f3f5;
+            font-size: 0.88em;
+        }
+        .ticket-item:last-child { border-bottom: none; }
+        .ticket-item .ti-left { flex: 1; }
+        .ticket-item .ti-name { font-weight: 500; color: var(--pos-text); }
+        .ticket-item .ti-qty { color: var(--pos-primary-light); font-weight: 600; }
+        .ticket-item .ti-price { font-weight: 600; color: var(--pos-text); min-width: 60px; text-align: right; }
+        .ticket-item .ti-remove {
+            background: none;
+            border: none;
+            color: #e74c3c;
+            cursor: pointer;
+            font-size: 1.2em;
+            padding: 0 4px;
+            opacity: 0.5;
+        }
+        .ticket-item .ti-remove:hover { opacity: 1; }
+
+        .ticket-summary {
+            padding: 12px 16px;
+            background: #f8fafc;
+            border-top: 1px solid #e8edf2;
+        }
+        .ticket-summary .ts-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.88em;
+            padding: 4px 0;
+        }
+        .ticket-summary .ts-row.total {
+            font-size: 1.1em;
+            font-weight: 700;
+            color: var(--pos-primary);
+            border-top: 2px solid #d5e8f0;
+            padding-top: 8px;
+            margin-top: 4px;
+        }
+        .ticket-summary .ts-row.profit {
+            color: var(--pos-success);
+            font-weight: 600;
+        }
+        .ticket-summary .ts-row.loss {
+            color: #e74c3c;
+            font-weight: 600;
+        }
+
+        .ticket-actions {
+            padding: 12px 16px 16px;
+        }
+        .ticket-actions button {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-charge {
+            background: linear-gradient(135deg, var(--pos-primary), var(--pos-primary-light));
+            color: white;
+        }
+        .btn-charge:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(26,82,118,0.3);
+        }
+        .btn-charge:disabled {
+            opacity: 0.4;
+            cursor: default;
+        }
+        .btn-clear {
+            background: transparent;
+            color: var(--pos-text-light);
+            margin-top: 6px;
+            font-size: 0.85em;
+        }
+        .btn-clear:hover { color: #e74c3c; }
+
+        /* Today summary bar */
+        .today-bar {
+            background: white;
+            border-radius: 12px;
+            padding: 16px 20px;
+            display: flex;
+            gap: 32px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+            border: 1px solid #e8edf2;
+        }
+        .today-stat { text-align: center; }
+        .today-stat .ts-value {
+            font-size: 1.3em;
+            font-weight: 700;
+            color: var(--pos-primary);
+        }
+        .today-stat .ts-label {
+            font-size: 0.75em;
+            color: var(--pos-text-light);
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        /* Toast */
+        .pos-toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--pos-success);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-weight: 600;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+            transform: translateY(80px);
+            opacity: 0;
+            transition: all 0.3s;
+            z-index: 9999;
+        }
+        .pos-toast.show { transform: translateY(0); opacity: 1; }
+    </style>
+</head>
+<body class="pos-page">
+
+    <nav class="navbar">
+        <div class="nav-inner">
+            <a href="/" class="nav-brand">&#127860; <span>K</span>itchen<span>M</span>aster</a>
+            <ul class="nav-links">
+                <li><a href="/">&#127968; <span>Inicio</span></a></li>
+                <li><a href="/shopping-list">&#128722; <span>Compras</span></a></li>
+                <li><a href="/ingredients">&#127838; <span>Ingredientes</span></a></li>
+                <li><a href="/pos" class="active">&#128176; <span>POS</span></a></li>
+                <li><a href="/menu-planner">&#128203; <span>Menu</span></a></li>
+                <li><a href="/analytics">&#128200; <span>Analítica</span></a></li>
+                {% if is_admin %}<li><a href="/admin">&#9881; <span>Admin</span></a></li>{% endif %}
+            </ul>
+            <div class="nav-user">
+                <span class="user-email">{{ user.email }}</span>
+                <button class="logout-btn" onclick="logout()">Salir</button>
+            </div>
+        </div>
+    </nav>
+
+    <section class="hero" style="padding:32px 0;background:linear-gradient(135deg,#1a5276,#2e86c1);">
+        <div class="hero-content">
+            <div class="hero-badge" style="background:rgba(255,255,255,0.15);color:#d6eaf8;border-color:rgba(255,255,255,0.25);">&#128176; Punto de Venta</div>
+            <h1>Registra tus <span style="color:#aed6f1;">Ventas</span></h1>
+            <p style="color:rgba(214,234,248,0.85);">Selecciona los platos vendidos hoy y el sistema descontar&aacute; autom&aacute;ticamente del inventario.</p>
+        </div>
+    </section>
+
+    <div class="container">
+        <a href="/" class="back-link" style="color:#2e86c1;">&larr; Volver al inicio</a>
+
+        <div class="today-bar" id="todayBar">
+            <div class="today-stat"><div class="ts-value" id="todayOrders">0</div><div class="ts-label">Pedidos hoy</div></div>
+            <div class="today-stat"><div class="ts-value" id="todayItems">0</div><div class="ts-label">Platos vendidos</div></div>
+            <div class="today-stat"><div class="ts-value" id="todaySales">$0</div><div class="ts-label">Ventas</div></div>
+            <div class="today-stat"><div class="ts-value" id="todayProfit" style="color:var(--pos-success);">$0</div><div class="ts-label">Ganancia</div></div>
+        </div>
+
+        <div class="pos-layout">
+
+            <div id="posDishGrid">
+                <p class="loading">Cargando platos...</p>
+            </div>
+
+            <div class="ticket-panel">
+                <div class="ticket-header">
+                    &#128221; Ticket
+                    <span id="ticketCount">0 items</span>
+                </div>
+                <div class="ticket-body" id="ticketBody">
+                    <div class="ticket-empty">Selecciona platos para armar el ticket</div>
+                </div>
+                <div class="ticket-summary" id="ticketSummary" style="display:none;">
+                    <div class="ts-row"><span>Costo MP</span><span id="tsCost">$0</span></div>
+                    <div class="ts-row profit" id="tsProfitRow"><span>Ganancia</span><span id="tsProfit">$0</span></div>
+                    <div class="ts-row total"><span>Total Venta</span><span id="tsTotal">$0</span></div>
+                </div>
+                <div class="ticket-actions">
+                    <button class="btn-charge" id="btnCharge" disabled onclick="chargeSale()">&#128179; Cobrar</button>
+                    <button class="btn-clear" onclick="clearTicket()">&#128465; Limpiar ticket</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="pos-toast" id="posToast"></div>
+
+    <script>
+        let dishes = [];
+        let ticket = [];
+
+        function showToast(msg) {
+            const t = document.getElementById('posToast');
+            t.textContent = msg;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+
+        async function loadPos() {
+            const [dRes, tRes] = await Promise.all([
+                fetch('/api/pos/dishes'),
+                fetch('/api/pos/today'),
+            ]);
+            dishes = await dRes.json();
+            renderDishes();
+            const td = await tRes.json();
+            renderToday(td.summary);
+        }
+
+        function renderToday(s) {
+            document.getElementById('todayOrders').textContent = s.orders_count;
+            document.getElementById('todayItems').textContent = s.items_count;
+            document.getElementById('todaySales').textContent = '$' + s.total_sale.toFixed(0);
+            document.getElementById('todayProfit').textContent = '$' + s.total_profit.toFixed(0);
+            const el = document.getElementById('todayProfit');
+            el.style.color = s.total_profit >= 0 ? '#27ae60' : '#e74c3c';
+        }
+
+        function renderDishes() {
+            const grid = document.getElementById('posDishGrid');
+            if (!dishes.length) {
+                grid.innerHTML = '<p style="text-align:center;padding:60px;color:var(--pos-text-light);">No hay platos registrados. Ve al Menu Planner para crear platos con precios.</p>';
+                return;
+            }
+            const cats = {};
+            dishes.forEach(d => {
+                if (!cats[d.category]) cats[d.category] = [];
+                cats[d.category].push(d);
+            });
+            let html = '';
+            Object.keys(cats).sort().forEach(cat => {
+                html += `<div class="pos-category"><h3>&#128336; ${cat}</h3><div class="pos-grid">`;
+                cats[cat].forEach(d => {
+                    const inTicket = ticket.find(t => t.id === d.id);
+                    const qty = inTicket ? inTicket.qty : 0;
+                    const profitClass = d.profit >= 0 ? 'profit-positive' : 'profit-negative';
+                    const profitLabel = d.profit >= 0 ? '+' : '';
+                    const hasStockIssue = d.recipe_details.some(r => r.current_stock < r.quantity_grams);
+                    html += `<div class="pos-dish">
+                        <div class="dish-icon">&#127858;</div>
+                        <div class="dish-name">${d.dish_name}</div>
+                        <div class="dish-meta">
+                            <span class="dish-price">$${d.sale_price.toFixed(0)}</span>
+                            <span class="dish-profit ${profitClass}">${profitLabel}${d.margin_pct.toFixed(0)}%</span>
+                        </div>
+                        <div class="dish-meta">
+                            <span class="dish-cost">Costo: $${d.cost_total.toFixed(0)}</span>
+                        </div>
+                        ${hasStockIssue ? '<div class="dish-stock-warn">&#9888; Stock insuficiente</div>' : ''}
+                        <div class="qty-selector">
+                            <button onclick="event.stopPropagation();updateQty(${d.id}, ${qty - 1})">−</button>
+                            <span>${qty}</span>
+                            <button onclick="event.stopPropagation();updateQty(${d.id}, ${qty + 1})">+</button>
+                        </div>
+                    </div>`;
+                });
+                html += `</div></div>`;
+            });
+            grid.innerHTML = html;
+        }
+
+        function updateQty(dishId, newQty) {
+            if (newQty < 0) newQty = 0;
+            const idx = ticket.findIndex(t => t.id === dishId);
+            if (newQty === 0) {
+                if (idx >= 0) ticket.splice(idx, 1);
+            } else {
+                const d = dishes.find(i => i.id === dishId);
+                if (!d) return;
+                if (idx >= 0) {
+                    ticket[idx].qty = newQty;
+                } else {
+                    ticket.push({ id: d.id, name: d.dish_name, qty: newQty, price: d.sale_price, cost: d.cost_total });
+                }
+            }
+            renderDishes();
+            renderTicket();
+        }
+
+        function renderTicket() {
+            const body = document.getElementById('ticketBody');
+            const summary = document.getElementById('ticketSummary');
+            const count = document.getElementById('ticketCount');
+            const btn = document.getElementById('btnCharge');
+
+            if (!ticket.length) {
+                body.innerHTML = '<div class="ticket-empty">Selecciona platos para armar el ticket</div>';
+                summary.style.display = 'none';
+                count.textContent = '0 items';
+                btn.disabled = true;
+                return;
+            }
+
+            count.textContent = ticket.reduce((s, t) => s + t.qty, 0) + ' items';
+            btn.disabled = false;
+
+            let html = '';
+            ticket.forEach(t => {
+                html += `<div class="ticket-item">
+                    <div class="ti-left">
+                        <div class="ti-name">${t.name}</div>
+                        <div class="ti-qty">x${t.qty}</div>
+                    </div>
+                    <div class="ti-price">$${(t.price * t.qty).toFixed(0)}</div>
+                    <button class="ti-remove" onclick="updateQty(${t.id}, 0)">&times;</button>
+                </div>`;
+            });
+            body.innerHTML = html;
+
+            const totalSale = ticket.reduce((s, t) => s + t.price * t.qty, 0);
+            const totalCost = ticket.reduce((s, t) => s + t.cost * t.qty, 0);
+            const profit = totalSale - totalCost;
+            document.getElementById('tsCost').textContent = '$' + totalCost.toFixed(0);
+            document.getElementById('tsTotal').textContent = '$' + totalSale.toFixed(0);
+            const prEl = document.getElementById('tsProfit');
+            prEl.textContent = '$' + profit.toFixed(0);
+            const prRow = document.getElementById('tsProfitRow');
+            prRow.className = 'ts-row ' + (profit >= 0 ? 'profit' : 'loss');
+            summary.style.display = 'block';
+        }
+
+        function clearTicket() {
+            if (ticket.length && !confirm('Limpiar ticket?')) return;
+            ticket = [];
+            renderDishes();
+            renderTicket();
+        }
+
+        async function chargeSale() {
+            if (!ticket.length) return;
+            if (!confirm('Confirmar venta de ' + ticket.reduce((s, t) => s + t.qty, 0) + ' productos por $' + ticket.reduce((s, t) => s + t.price * t.qty, 0).toFixed(0) + '?')) return;
+
+            const items = ticket.map(t => ({ dish_id: t.id, quantity: t.qty, sale_price: t.price }));
+            const btn = document.getElementById('btnCharge');
+            btn.disabled = true;
+            btn.textContent = 'Procesando...';
+
+            try {
+                const res = await fetch('/api/pos/sell', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ items }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showToast('&#9989; ' + data.message);
+                    ticket = [];
+                    renderDishes();
+                    renderTicket();
+                    const tRes = await fetch('/api/pos/today');
+                    const td = await tRes.json();
+                    renderToday(td.summary);
+                } else {
+                    showToast('&#10060; Error: ' + (data.error || 'desconocido'));
+                }
+            } catch(e) {
+                showToast('&#10060; Error de conexion');
+            }
+            btn.disabled = false;
+            btn.textContent = '&#128179; Cobrar';
+        }
+
+        function logout() {
+            fetch('/api/auth/logout', { method: 'POST' }).then(() => window.location.href = '/login');
+        }
+        loadPos();
+    </script>
+</body>
+</html>
