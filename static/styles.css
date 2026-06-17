@@ -411,6 +411,8 @@ button.btn-secondary:hover {
     box-shadow: 0 4px 16px rgba(212, 163, 83, 0.4);
 }
 
+.admin-actions { display: flex; gap: 6px; flex-wrap: nowrap; }
+
 button.delete-btn, .btn-danger {
     background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
     padding: 6px 14px;

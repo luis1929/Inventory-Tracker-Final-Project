@@ -53,11 +53,13 @@
                     <input type="text" id="ingMeasure" placeholder="Unidad (lb, oz, l, kg)" required>
                     <input type="number" step="0.01" id="ingCount" placeholder="Cantidad en stock" required>
                     <input type="number" step="0.01" id="ingCost" placeholder="Costo por unidad ($)" required>
-                    <button type="submit">&#128190; Guardar</button>
+                    <button type="submit" id="formSubmitBtn">&#128190; Guardar</button>
+                    <button type="button" id="formCancelBtn" style="display:none;background:linear-gradient(135deg,#7f8c8d,#636e72);box-shadow:none;" onclick="cancelEdit()">&#10005; Cancelar</button>
                 </div>
                 <div class="form-row">
                     <input type="text" id="ingNotes" placeholder="Observaciones" style="flex:2;">
                 </div>
+                <input type="hidden" id="editingName" value="">
             </form>
             <div id="formMessage" class="message"></div>
         </div>
@@ -144,7 +146,12 @@
                     <td>$${parseFloat(ing.cost).toFixed(2)}</td>
                     <td>$${totalValue.toFixed(2)}</td>
                     <td style="font-size:0.85em;color:var(--text-light);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${ing.notes || ''}">${ing.notes || '-'}</td>
-                    <td><button class="delete-btn" onclick="deleteIngredient('${ing.name}')">&#128465;</button></td>
+                    <td>
+                        <div class="admin-actions">
+                            <button class="btn-demote" style="font-size:0.8em;padding:4px 10px;" onclick="editIngredient('${ing.name}')">&#9998; Editar</button>
+                            <button class="btn-delete" style="font-size:0.8em;padding:4px 10px;" onclick="deleteIngredient('${ing.name}')">&#128465;</button>
+                        </div>
+                    </td>
                 </tr>`;
             });
 
@@ -175,8 +182,36 @@
             if (res.ok) loadInventory();
         }
 
+        function editIngredient(name) {
+            const ing = allData.find(i => i.name === name);
+            if (!ing) return;
+            document.getElementById('ingClassification').value = ing.classification || '';
+            document.getElementById('ingName').value = ing.name;
+            document.getElementById('ingBrand').value = ing.brand || '';
+            document.getElementById('ingSupplier').value = ing.supplier || '';
+            document.getElementById('ingPresentation').value = ing.presentation || '';
+            document.getElementById('ingMeasure').value = ing.measure || '';
+            document.getElementById('ingCount').value = ing.count;
+            document.getElementById('ingCost').value = ing.cost;
+            document.getElementById('ingNotes').value = ing.notes || '';
+            document.getElementById('editingName').value = ing.name;
+            document.getElementById('formSubmitBtn').innerHTML = '&#128221; Actualizar';
+            document.getElementById('formCancelBtn').style.display = 'inline-block';
+            document.getElementById('ingName').focus();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function cancelEdit() {
+            document.getElementById('ingredientForm').reset();
+            document.getElementById('editingName').value = '';
+            document.getElementById('formSubmitBtn').innerHTML = '&#128190; Guardar';
+            document.getElementById('formCancelBtn').style.display = 'none';
+            document.getElementById('formMessage').textContent = '';
+        }
+
         document.getElementById('ingredientForm').onsubmit = async function(e) {
             e.preventDefault();
+            const editing = document.getElementById('editingName').value;
             const data = {
                 name: document.getElementById('ingName').value.trim(),
                 classification: document.getElementById('ingClassification').value.trim(),
@@ -196,7 +231,7 @@
             const result = await res.json();
             showMessage(result.error || result.message, res.ok ? 'success' : 'error');
             if (res.ok) {
-                this.reset();
+                cancelEdit();
                 loadInventory();
             }
         };
