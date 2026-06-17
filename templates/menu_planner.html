@@ -575,7 +575,8 @@
         }
 
         function renderCard(item) {
-            const cost = item.cost_total ? parseFloat(item.cost_total).toFixed(2) : null;
+            const costVal = item.cost_total !== undefined && item.cost_total !== null ? parseFloat(item.cost_total) : null;
+            const cost = costVal !== null ? '$' + costVal.toFixed(2) : null;
             const recipeCount = item.recipe_count || 0;
             return `
                 <div class="kanban-card" draggable="true"
@@ -585,7 +586,7 @@
                      data-id="${item.id}">
                     ${item.dish_name}
                     ${recipeCount > 0 ? '<span class="recipe-badge">' + recipeCount + ' ingr.</span>' : ''}
-                    <div class="card-cost">Costo: <span class="cost-val">${cost !== null ? '$' + cost : '—'}</span></div>
+                    <div class="card-cost">${cost !== null ? 'Costo: <span class="cost-val">' + cost + '</span>' : '<span style="color:var(--text-light);font-style:italic;">Sin costo</span>'}</div>
                     <button class="delete-card" onclick="event.stopPropagation(); deleteItem(${item.id})" title="Eliminar">&#10005;</button>
                 </div>`;
         }
