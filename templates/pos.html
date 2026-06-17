@@ -386,7 +386,7 @@
     <script>
         let dishes = [];
         let ticket = [];
-        let selectedCategory = '';
+        let selectedCategory = null;
 
         function showToast(msg) {
             const t = document.getElementById('posToast');
@@ -429,19 +429,22 @@
             const catNames = Object.keys(cats).sort();
 
             // Category tabs
-            let tabHtml = '<button class="active" onclick="selectCategory(\'\')">Todos (' + dishes.length + ')</button>';
-            catNames.forEach(c => {
+            let tabHtml = catNames.map(c => {
                 const cls = selectedCategory === c ? 'active' : '';
-                tabHtml += '<button class="' + cls + '" onclick="selectCategory(\'' + c.replace(/'/g, "\\'") + '\')">' + c + ' (' + cats[c].length + ')</button>';
-            });
+                return '<button class="' + cls + '" onclick="selectCategory(\'' + c.replace(/'/g, "\\'") + '\')">' + c + ' (' + cats[c].length + ')</button>';
+            }).join('');
+            tabHtml += '<button class="' + (selectedCategory === '__all__' ? 'active' : '') + '" onclick="selectCategory(\'__all__\')">Todos (' + dishes.length + ')</button>';
             document.getElementById('catTabs').innerHTML = tabHtml;
 
-            // Filter
-            const filtered = selectedCategory ? (cats[selectedCategory] || []) : dishes;
-            const title = selectedCategory ? selectedCategory : 'Todos los platos';
-            document.getElementById('posSectionTitle').textContent = title + ' (' + filtered.length + ')';
-
             const grid = document.getElementById('posGrid');
+            if (selectedCategory === null || selectedCategory === '') {
+                document.getElementById('posSectionTitle').textContent = 'Selecciona una categoría';
+                grid.innerHTML = '';
+                return;
+            }
+            const filtered = selectedCategory === '__all__' ? dishes : (cats[selectedCategory] || []);
+            document.getElementById('posSectionTitle').textContent = (selectedCategory === '__all__' ? 'Todos los platos' : selectedCategory) + ' (' + filtered.length + ')';
+
             let html = '';
             filtered.forEach(d => {
                 const inTicket = ticket.find(t => t.id === d.id);
