@@ -185,6 +185,49 @@ body {
     line-height: 1.7;
 }
 
+/* Compras page — light blue supermarket theme */
+.page-compras .hero {
+    background: linear-gradient(135deg, #1a5276 0%, #2e86c1 40%, #85c1e9 100%);
+}
+
+.page-compras .hero::before {
+    background:
+        radial-gradient(circle at 15% 85%, rgba(255,255,255,0.08) 0%, transparent 50%),
+        radial-gradient(circle at 85% 15%, rgba(255,255,255,0.12) 0%, transparent 50%);
+}
+
+.page-compras .hero-badge {
+    background: rgba(255,255,255,0.15);
+    color: #d6eaf8;
+    border-color: rgba(255,255,255,0.25);
+}
+
+.page-compras .hero h1 span { color: #aed6f1; }
+
+.page-compras .hero p { color: rgba(214, 234, 248, 0.85); }
+
+.page-compras .hero::after {
+    content: '🛒';
+    position: absolute;
+    right: 5%;
+    bottom: -10px;
+    font-size: 8em;
+    opacity: 0.08;
+    z-index: 0;
+}
+
+.page-compras .content-card h2 {
+    border-color: #85c1e9;
+}
+
+.page-compras .back-link {
+    color: #2e86c1;
+}
+
+.page-compras .back-link:hover {
+    color: #1a5276;
+}
+
 /* Stats Bar */
 .stats-bar {
     background: var(--white);
