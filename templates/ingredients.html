@@ -41,7 +41,21 @@
             <h2>&#10133; Agregar / Actualizar Ingrediente</h2>
             <form id="ingredientForm">
                 <div class="form-row">
-                    <input type="text" id="ingClassification" placeholder="Clasificacion" style="flex:0.8;">
+                    <select id="ingClassification" style="flex:0.8;padding:10px 14px;border:2px solid var(--cream-dark);border-radius:var(--radius-sm);font-size:0.95em;font-family:'Inter',sans-serif;background:var(--cream);color:var(--text);">
+                        <option value="">-- Clasificacion --</option>
+                        <option value="ADEREZOS/CONDIMENTOS/ESPECIAS">ADEREZOS/CONDIMENTOS/ESPECIAS</option>
+                        <option value="AZUCARES - ENDULZANTES">AZUCARES - ENDULZANTES</option>
+                        <option value="CEREALES - TUBERCULOS - CARBOHIDRATOS">CEREALES - TUBERCULOS - CARBOHIDRATOS</option>
+                        <option value="CONSERVAS - ENLATADOS">CONSERVAS - ENLATADOS</option>
+                        <option value="FRUTAS - VERDURAS">FRUTAS - VERDURAS</option>
+                        <option value="GRANOS">GRANOS</option>
+                        <option value="HARINAS - MEZCLAS">HARINAS - MEZCLAS</option>
+                        <option value="LACTEOS">LACTEOS</option>
+                        <option value="PROTEINAS (CARNE - POLLO - PESCADO)">PROTEINAS (CARNE - POLLO - PESCADO)</option>
+                        <option value="SALSAS - ADEREZOS">SALSAS - ADEREZOS</option>
+                        <option value="VINOS - LICORES">VINOS - LICORES</option>
+                        <option value="OTROS">OTROS</option>
+                    </select>
                     <input type="text" id="ingName" placeholder="Nombre del producto *" required>
                     <input type="text" id="ingBrand" placeholder="Marca" style="flex:0.7;">
                 </div>
