@@ -579,15 +579,47 @@ def analytics():
     dish_list = dishes.json() if dishes.status_code == 200 else []
 
     recipeCosts = []
-    for dish in dish_list:
-        dish_id = dish['id']
-        raw_total, final_total, enriched = _compute_dish_cost(dish_id)
-        recipeCosts.append({
-            'recipe_id': dish_id,
-            'recipe_name': dish.get('dish_name', 'Sin nombre'),
-            'cost': raw_total,
-            'ingredient_count': len(enriched),
-        })
+    if dish_list:
+        dish_ids = [d['id'] for d in dish_list]
+        id_filter = 'in.(' + ','.join(str(i) for i in dish_ids) + ')'
+        rr = api_req('GET', T_MENU_RECIPE, params={'dish_id': id_filter})
+        all_items = rr.json() if rr.status_code == 200 else []
+        items_by_dish = {}
+        for item in all_items:
+            items_by_dish.setdefault(item['dish_id'], []).append(item)
+
+        ing_names = set()
+        for items in items_by_dish.values():
+            for item in items:
+                if not item.get('unit_cost'):
+                    ing_names.add(item['ingredient_name'])
+        ing_cost_map = {}
+        if ing_names:
+            name_filter = 'in.(' + ','.join(n.replace("'", "''") for n in ing_names) + ')'
+            ri = api_req('GET', T_INGS, params={'name': name_filter, 'select': 'name,cost,measure'})
+            if ri.status_code == 200:
+                for ing in ri.json():
+                    mult = _cost_multiplier(ing.get('measure', 'g'))
+                    ing_cost_map[ing['name']] = float(ing['cost']) * mult
+
+        for dish in dish_list:
+            did = dish['id']
+            items = items_by_dish.get(did, [])
+            raw_total = 0.0
+            for item in items:
+                qty = float(item.get('quantity_grams', 0))
+                if item.get('unit_cost') is not None and float(item.get('unit_cost', 0)) > 0:
+                    unit_cost = float(item['unit_cost'])
+                else:
+                    unit_cost = ing_cost_map.get(item['ingredient_name'], 0)
+                raw_total += qty * unit_cost
+            raw_total = round(raw_total, 2)
+            recipeCosts.append({
+                'recipe_id': did,
+                'recipe_name': dish.get('dish_name', 'Sin nombre'),
+                'cost': raw_total,
+                'ingredient_count': len(items),
+            })
 
     recipeCosts.sort(key=lambda x: x['cost'], reverse=True)
 
@@ -684,12 +716,64 @@ def get_menu():
     if r.status_code != 200:
         return jsonify({'error': r.text}), r.status_code
     dishes = r.json()
+    if not dishes:
+        return jsonify([])
+
+    dish_ids = [d['id'] for d in dishes]
+
+    # Batch-fetch all recipe items
+    id_filter = 'in.(' + ','.join(str(i) for i in dish_ids) + ')'
+    rr = api_req('GET', T_MENU_RECIPE, params={'dish_id': id_filter})
+    all_items = rr.json() if rr.status_code == 200 else []
+
+    # Group items by dish_id
+    items_by_dish = {}
+    for item in all_items:
+        items_by_dish.setdefault(item['dish_id'], []).append(item)
+
+    # Batch-fetch all ingredient costs (for items without unit_cost)
+    ing_names = set()
+    for items in items_by_dish.values():
+        for item in items:
+            if not item.get('unit_cost'):
+                ing_names.add(item['ingredient_name'])
+    ing_cost_map = {}
+    if ing_names:
+        name_filter = 'in.(' + ','.join(n.replace("'", "''") for n in ing_names) + ')'
+        ri = api_req('GET', T_INGS, params={'name': name_filter, 'select': 'name,cost,measure'})
+        if ri.status_code == 200:
+            for ing in ri.json():
+                mult = _cost_multiplier(ing.get('measure', 'g'))
+                ing_cost_map[ing['name']] = float(ing['cost']) * mult
+
     for dish in dishes:
-        dish_id = dish['id']
-        raw_total, final_total, enriched = _compute_dish_cost(dish_id)
+        did = dish['id']
+        items = items_by_dish.get(did, [])
+        raw_total = 0.0
+        enriched = []
+        for item in items:
+            qty = float(item.get('quantity_grams', 0))
+            if item.get('unit_cost') is not None and float(item.get('unit_cost', 0)) > 0:
+                unit_cost = float(item['unit_cost'])
+            else:
+                unit_cost = ing_cost_map.get(item['ingredient_name'], 0)
+            line_cost = qty * unit_cost
+            raw_total += line_cost
+            enriched.append({
+                'id': item['id'],
+                'dish_id': item['dish_id'],
+                'ingredient_name': item['ingredient_name'],
+                'quantity_grams': qty,
+                'unit_cost': round(unit_cost, 4),
+                'line_cost': round(line_cost, 2),
+            })
+        raw_total = round(raw_total, 2)
+        overhead = float(dish.get('overhead_cost', 0))
+        final_total = round(raw_total + overhead, 2)
         dish['cost_total'] = final_total
         dish['raw_cost'] = raw_total
         dish['recipe_count'] = len(enriched)
+
     return jsonify(dishes)
 
 
