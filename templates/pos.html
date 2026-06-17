@@ -203,23 +203,62 @@
             margin-top: 2px;
             cursor: pointer;
         }
-        .pos-dish .stock-detail {
-            font-size: 0.58em;
-            color: #c0392b;
-            background: #fdf2f2;
-            border-radius: 4px;
-            padding: 3px 5px;
-            margin-top: 2px;
+        .pos-dish .dish-stock-warn:hover { text-decoration: underline; }
+
+        /* Stock Detail Modal */
+        .stock-modal-overlay {
             display: none;
-            max-height: 80px;
-            overflow-y: auto;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.35);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
         }
-        .pos-dish .stock-detail.open { display: block; }
-        .pos-dish .stock-detail .si-row {
+        .stock-modal-overlay.show { display: flex; }
+        .stock-modal {
+            background: white;
+            border-radius: 14px;
+            width: 400px;
+            max-width: 92vw;
+            max-height: 80vh;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.15);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .stock-modal .sm-header {
+            background: #e67e22;
+            color: white;
+            padding: 14px 18px;
+            font-weight: 600;
+            font-size: 1em;
             display: flex;
             justify-content: space-between;
-            gap: 4px;
+            align-items: center;
         }
+        .stock-modal .sm-header .close-btn {
+            background: none; border: none; color: rgba(255,255,255,0.7);
+            font-size: 1.4em; cursor: pointer; line-height: 1;
+        }
+        .stock-modal .sm-header .close-btn:hover { color: white; }
+        .stock-modal .sm-body {
+            padding: 12px 16px;
+            overflow-y: auto;
+        }
+        .stock-modal .sm-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f3f5;
+            font-size: 0.85em;
+        }
+        .stock-modal .sm-item:last-child { border-bottom: none; }
+        .stock-modal .sm-item .si-name { font-weight: 500; color: #2c3e50; }
+        .stock-modal .sm-item .si-stock { color: #7f8c8d; }
+        .stock-modal .sm-item .si-stock.low { color: #e74c3c; font-weight: 600; }
+        .stock-modal .sm-item .si-req { color: #2c3e50; }
 
         /* Ticket Panel */
         .ticket-header {
@@ -430,6 +469,17 @@
                 <div class="pos-grid" id="posGrid"></div>
             </div>
 
+            <!-- Stock Detail Modal -->
+            <div class="stock-modal-overlay" id="stockModal">
+                <div class="stock-modal">
+                    <div class="sm-header">
+                        &#9888; Stock de ingredientes
+                        <button class="close-btn" onclick="closeStockModal()">&times;</button>
+                    </div>
+                    <div class="sm-body" id="stockModalBody"></div>
+                </div>
+            </div>
+
             <!-- Ticket Modal -->
             <div class="ticket-overlay" id="ticketOverlay">
                 <div class="ticket-modal">
@@ -553,10 +603,7 @@
                 let stockHtml = '';
                 if (hasStockIssue) {
                     const lowItems = d.recipe_details.filter(r => r.current_stock < r.quantity_grams);
-                    stockHtml = '<div class="dish-stock-warn" onclick="event.stopPropagation();this.nextElementSibling.classList.toggle(\'open\')">&#9888; ' + lowItems.length + ' ingredientes insuficientes</div>' +
-                        '<div class="stock-detail">' +
-                        lowItems.map(r => '<div class="si-row"><span>' + r.ingredient_name + '</span><span>stock ' + r.current_stock.toFixed(0) + 'g / req ' + r.quantity_grams.toFixed(0) + 'g</span></div>').join('') +
-                        '</div>';
+                    stockHtml = '<div class="dish-stock-warn" onclick="event.stopPropagation();showStockModal(' + d.id + ')">&#9888; ' + lowItems.length + ' ingredientes insuficientes</div>';
                 }
                 html += '<div class="pos-dish">' +
                     '<div class="dish-name">' + d.dish_name + '</div>' +
@@ -576,6 +623,21 @@
             selectedCategory = cat;
             renderDishes();
         }
+
+        function showStockModal(dishId) {
+            const d = dishes.find(i => i.id === dishId);
+            if (!d) return;
+            const lowItems = d.recipe_details.filter(r => r.current_stock < r.quantity_grams);
+            if (!lowItems.length) return;
+            let html = lowItems.map(r => {
+                const cls = r.current_stock < r.quantity_grams ? 'low' : '';
+                return '<div class="sm-item"><span class="si-name">' + r.ingredient_name + '</span><span>Requiere <span class="si-req">' + r.quantity_grams.toFixed(0) + 'g</span> &middot; Stock <span class="si-stock ' + cls + '">' + r.current_stock.toFixed(0) + 'g</span></span></div>';
+            }).join('');
+            document.getElementById('stockModalBody').innerHTML = html;
+            document.getElementById('stockModal').classList.add('show');
+        }
+        function closeStockModal() { document.getElementById('stockModal').classList.remove('show'); }
+        document.getElementById('stockModal').addEventListener('click', function(e) { if (e.target === this) closeStockModal(); });
 
         function updateQty(dishId, newQty) {
             if (newQty < 0) newQty = 0;
