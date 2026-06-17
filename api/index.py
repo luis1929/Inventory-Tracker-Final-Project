@@ -621,13 +621,12 @@ def _cost_multiplier(measure):
 def _compute_dish_cost(dish_id):
     r = api_req('GET', T_MENU_RECIPE, params={'dish_id': 'eq.' + str(dish_id)})
     if r.status_code != 200:
-        return 0, []
+        return 0, 0, []
     items = r.json()
-    total = 0.0
+    raw_total = 0.0
     enriched = []
     for item in items:
         qty = float(item.get('quantity_grams', 0))
-        # Use recipe-specific unit_cost if present, otherwise compute from ingredient_table
         if item.get('unit_cost') is not None and float(item.get('unit_cost', 0)) > 0:
             unit_cost = float(item['unit_cost'])
         else:
@@ -641,7 +640,7 @@ def _compute_dish_cost(dish_id):
             else:
                 unit_cost = 0
         line_cost = qty * unit_cost
-        total += line_cost
+        raw_total += line_cost
         enriched.append({
             'id': item['id'],
             'dish_id': item['dish_id'],
@@ -650,9 +649,17 @@ def _compute_dish_cost(dish_id):
             'unit_cost': round(unit_cost, 4),
             'line_cost': round(line_cost, 2),
         })
-    total = round(total, 2)
-    api_req('PATCH', T_MENU, data={'cost_total': total}, params={'id': 'eq.' + str(dish_id)})
-    return total, enriched
+    raw_total = round(raw_total, 2)
+
+    # Get overhead from menu_board
+    rd = api_req('GET', T_MENU, params={'id': 'eq.' + str(dish_id), 'select': 'overhead_cost'})
+    overhead = 0
+    if rd.status_code == 200 and rd.json():
+        overhead = float(rd.json()[0].get('overhead_cost', 0))
+
+    final_total = round(raw_total + overhead, 2)
+    api_req('PATCH', T_MENU, data={'cost_total': final_total}, params={'id': 'eq.' + str(dish_id)})
+    return raw_total, final_total, enriched
 
 
 @app.route('/api/ingredients/names', methods=['GET'])
@@ -682,8 +689,9 @@ def get_menu():
     dishes = r.json()
     for dish in dishes:
         dish_id = dish['id']
-        _, enriched = _compute_dish_cost(dish_id)
-        dish['cost_total'] = round(sum(e['line_cost'] for e in enriched), 2)
+        raw_total, final_total, enriched = _compute_dish_cost(dish_id)
+        dish['cost_total'] = final_total
+        dish['raw_cost'] = raw_total
         dish['recipe_count'] = len(enriched)
     return jsonify(dishes)
 
@@ -742,7 +750,7 @@ def delete_menu_item(item_id):
 @app.route('/api/menu/<int:dish_id>/recipe', methods=['GET'])
 @api_auth_required
 def get_menu_recipe(dish_id):
-    _, enriched = _compute_dish_cost(dish_id)
+    _, _, enriched = _compute_dish_cost(dish_id)
     return jsonify(enriched)
 
 
@@ -814,7 +822,7 @@ def delete_menu_recipe_item(dish_id, item_id):
 @api_auth_required
 def update_dish_nutrition(dish_id):
     data = request.get_json()
-    fields = ['cost_total', 'portion_weight_g', 'protein_g', 'calories', 'carbs_g', 'fat_g', 'fiber_g', 'sodium_mg']
+    fields = ['cost_total', 'portion_weight_g', 'protein_g', 'calories', 'carbs_g', 'fat_g', 'fiber_g', 'sodium_mg', 'overhead_cost']
     update = {}
     for f in fields:
         if f in data:
@@ -948,6 +956,7 @@ def run_migration():
     );
     ALTER TABLE menu_recipe_items ADD COLUMN IF NOT EXISTS unit_cost DECIMAL(10,4) DEFAULT 0;
     ALTER TABLE menu_board ADD COLUMN IF NOT EXISTS cost_total DECIMAL(10,2) DEFAULT 0;
+    ALTER TABLE menu_board ADD COLUMN IF NOT EXISTS overhead_cost DECIMAL(10,2) DEFAULT 0;
     ALTER TABLE menu_board ADD COLUMN IF NOT EXISTS portion_weight_g INT DEFAULT 150;
     ALTER TABLE menu_board ADD COLUMN IF NOT EXISTS protein_g DECIMAL(8,2) DEFAULT 0;
     ALTER TABLE menu_board ADD COLUMN IF NOT EXISTS calories DECIMAL(8,2) DEFAULT 0;
