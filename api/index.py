@@ -34,6 +34,7 @@ T_INGS = 'ingredient_table'
 T_RECIPES = 'recipe_table'
 T_RECIPE_INGS = 'recipe_ingredients_table'
 T_USERS = 'user_profiles'
+T_MENU = 'menu_board'
 
 
 def get_api_config():
@@ -606,6 +607,72 @@ def analytics():
     })
 
 
+# ── Menu Planner Routes ──
+
+@app.route('/menu-planner')
+@login_required
+def menu_planner_page():
+    return render_template('menu_planner.html', user=session['user'])
+
+
+@app.route('/api/menu', methods=['GET'])
+@api_auth_required
+def get_menu():
+    r = api_req('GET', T_MENU, params={'order': 'sort_order.asc'})
+    if r.status_code != 200:
+        return jsonify({'error': r.text}), r.status_code
+    return jsonify(r.json())
+
+
+@app.route('/api/menu', methods=['POST'])
+@api_auth_required
+def add_menu_item():
+    data = request.get_json()
+    if not data or not data.get('category') or not data.get('dish_name'):
+        return jsonify({'error': 'Categoria y nombre requeridos'}), 400
+
+    items = api_req('GET', T_MENU, params={'category': 'eq.' + data['category'], 'order': 'sort_order.desc', 'limit': 1})
+    next_order = items.json()[0]['sort_order'] + 1 if items.status_code == 200 and items.json() else 0
+
+    r = api_req('POST', T_MENU, data={
+        'category': data['category'],
+        'dish_name': data['dish_name'],
+        'sort_order': next_order,
+        'status': data.get('status', 'activo'),
+    }, extra_headers={'Prefer': 'return=representation'})
+    if r.status_code not in (200, 201):
+        return jsonify({'error': r.text}), r.status_code
+    return jsonify(r.json()[0] if isinstance(r.json(), list) else r.json())
+
+
+@app.route('/api/menu/<int:item_id>', methods=['PUT'])
+@api_auth_required
+def update_menu_item(item_id):
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Datos requeridos'}), 400
+
+    update = {}
+    for field in ('category', 'dish_name', 'sort_order', 'status'):
+        if field in data:
+            update[field] = data[field]
+
+    r = api_req('PATCH', T_MENU, data=update, params={'id': 'eq.' + str(item_id)})
+    if r.status_code not in (200, 204):
+        return jsonify({'error': r.text}), r.status_code
+    return jsonify({'message': 'Actualizado'})
+
+
+@app.route('/api/menu/<int:item_id>', methods=['DELETE'])
+@api_auth_required
+def delete_menu_item(item_id):
+    r = api_req('DELETE', T_MENU, params={'id': 'eq.' + str(item_id)},
+                extra_headers={'Prefer': 'return=representation'})
+    if r.status_code == 200 and r.json():
+        return jsonify({'message': 'Eliminado'})
+    return jsonify({'error': 'No encontrado'}), 404
+
+
 # ── Admin Routes ──
 
 @app.route('/admin')
@@ -700,6 +767,14 @@ def run_migration():
         id UUID PRIMARY KEY,
         email TEXT UNIQUE NOT NULL,
         role TEXT NOT NULL DEFAULT 'user',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS menu_board (
+        id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+        category TEXT NOT NULL,
+        dish_name TEXT NOT NULL,
+        sort_order INT DEFAULT 0,
+        status TEXT DEFAULT 'activo',
         created_at TIMESTAMPTZ DEFAULT NOW()
     );
     '''

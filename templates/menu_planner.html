@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menu Planner - KitchenMaster</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <style>
+        .kanban-board {
+            display: flex;
+            gap: 16px;
+            overflow-x: auto;
+            padding: 8px 0 24px;
+            min-height: 70vh;
+        }
+        .kanban-column {
+            min-width: 260px;
+            max-width: 300px;
+            flex: 1;
+            background: #f8f4ef;
+            border-radius: var(--radius);
+            padding: 16px;
+            border: 1px solid var(--cream-dark);
+            display: flex;
+            flex-direction: column;
+            max-height: calc(100vh - 200px);
+        }
+        .kanban-column-header {
+            font-family: 'Playfair Display', serif;
+            font-size: 0.95em;
+            color: var(--dark);
+            padding-bottom: 12px;
+            margin-bottom: 12px;
+            border-bottom: 2px solid var(--cream-dark);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .kanban-column-header .count {
+            font-family: 'Inter', sans-serif;
+            font-size: 0.75em;
+            color: var(--text-light);
+            background: var(--cream);
+            padding: 2px 10px;
+            border-radius: 50px;
+        }
+        .kanban-cards {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-height: 60px;
+        }
+        .kanban-card {
+            background: white;
+            border-radius: var(--radius-sm);
+            padding: 12px 14px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+            border: 1px solid rgba(212,163,83,0.15);
+            cursor: grab;
+            transition: all 0.2s;
+            position: relative;
+            font-size: 0.9em;
+            line-height: 1.4;
+        }
+        .kanban-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transform: translateY(-1px);
+        }
+        .kanban-card.dragging {
+            opacity: 0.5;
+            transform: rotate(2deg);
+        }
+        .kanban-card .delete-card {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 0.8em;
+            color: var(--text-light);
+            opacity: 0;
+            transition: opacity 0.2s;
+            padding: 4px 6px;
+            border-radius: 4px;
+        }
+        .kanban-card:hover .delete-card {
+            opacity: 1;
+        }
+        .kanban-card .delete-card:hover {
+            background: #fadbd8;
+            color: #e74c3c;
+        }
+        .kanban-column.drag-over {
+            background: #f0ebe4;
+            border-color: var(--secondary);
+        }
+        .add-card-btn {
+            margin-top: 12px;
+            padding: 8px;
+            background: none;
+            border: 2px dashed var(--cream-dark);
+            border-radius: var(--radius-sm);
+            color: var(--text-light);
+            font-size: 0.85em;
+            cursor: pointer;
+            transition: all 0.2s;
+            flex-shrink: 0;
+            font-family: 'Inter', sans-serif;
+        }
+        .add-card-btn:hover {
+            border-color: var(--secondary);
+            color: var(--secondary);
+            background: rgba(212,163,83,0.05);
+        }
+        .empty-column {
+            text-align: center;
+            padding: 20px 10px;
+            color: var(--text-light);
+            font-size: 0.85em;
+            font-style: italic;
+        }
+        .add-form {
+            display: none;
+            margin-top: 12px;
+            flex-shrink: 0;
+        }
+        .add-form.show { display: block; }
+        .add-form input {
+            width: 100%;
+            padding: 8px 10px;
+            border: 2px solid var(--cream-dark);
+            border-radius: var(--radius-sm);
+            font-size: 0.85em;
+            margin-bottom: 8px;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+        .add-form input:focus {
+            outline: none;
+            border-color: var(--secondary);
+        }
+        .add-form-actions {
+            display: flex;
+            gap: 6px;
+        }
+        .add-form-actions button {
+            padding: 6px 14px;
+            font-size: 0.8em;
+            flex: 1;
+        }
+        .add-form-actions .btn-cancel {
+            background: #ecf0f1;
+            color: var(--text-light);
+            box-shadow: none;
+        }
+        .add-form-actions .btn-cancel:hover {
+            background: #dfe4e6;
+        }
+        .kanban-dropzone {
+            min-height: 40px;
+            border-radius: var(--radius-sm);
+            transition: background 0.2s;
+        }
+        .kanban-dropzone.drag-over {
+            background: rgba(212,163,83,0.1);
+        }
+
+        @media (max-width: 768px) {
+            .kanban-board {
+                flex-direction: column;
+                overflow-x: visible;
+            }
+            .kanban-column {
+                min-width: 100%;
+                max-width: 100%;
+                max-height: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-inner">
+            <a href="/" class="nav-brand">&#127860; <span>K</span>itchen<span>M</span>aster</a>
+            <ul class="nav-links">
+                <li><a href="/">&#127968; <span>Inicio</span></a></li>
+                <li><a href="/shopping-list">&#128722; <span>Compras</span></a></li>
+                <li><a href="/ingredients">&#127838; <span>Ingredientes</span></a></li>
+                <li><a href="/recipes">&#128221; <span>Recetas</span></a></li>
+                <li><a href="/menu-planner" class="active">&#128203; <span>Menu</span></a></li>
+                <li><a href="/analytics">&#128200; <span>Analítica</span></a></li>
+                {% if is_admin %}<li><a href="/admin">&#9881; <span>Admin</span></a></li>{% endif %}
+            </ul>
+            <div class="nav-user">
+                <span class="user-email">{{ user.email }}</span>
+                <button class="logout-btn" onclick="logout()">Salir</button>
+            </div>
+        </div>
+    </nav>
+
+    <section class="hero" style="padding:40px 0;">
+        <div class="hero-content">
+            <div class="hero-badge">&#128203; Planificador</div>
+            <h1>Menu <span>Planner</span></h1>
+            <p>Organiza tus platos por categoria. Arrastra y suelta para reordenar.</p>
+        </div>
+    </section>
+
+    <div class="container">
+        <div id="board">
+            <p class="loading">Cargando planificador...</p>
+        </div>
+    </div>
+
+    <div class="footer">
+        Restaurant Inventory Tracker &mdash; Menu Planner
+    </div>
+
+    <script>
+        const CATEGORIES = [
+            "Pollo/Pavo", "Pescados/Mariscos", "Cerdo", "Carne",
+            "Arroz", "Papa", "Pastas", "Quinoa",
+            "Otros Acompañantes", "Vegetales Salteados/al Horno/Asados",
+            "Vegetales Frescos", "Menu Chef Ideas y Pendientes por Estandarizar"
+        ];
+
+        let menuData = [];
+        let draggedItem = null;
+
+        async function loadMenu() {
+            try {
+                const res = await fetch('/api/menu');
+                menuData = await res.json();
+                renderBoard();
+            } catch (e) {
+                document.getElementById('board').innerHTML = '<p class="loading" style="color:#e74c3c;">Error al cargar</p>';
+            }
+        }
+
+        function renderBoard() {
+            const board = document.getElementById('board');
+            let html = '<div class="kanban-board">';
+
+            CATEGORIES.forEach(cat => {
+                const items = menuData.filter(i => i.category === cat).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+                html += `
+                    <div class="kanban-column" data-category="${cat}" ondrop="drop(event)" ondragover="allowDrop(event)" ondragleave="dragLeave(event)">
+                        <div class="kanban-column-header">
+                            <span>${cat}</span>
+                            <span class="count">${items.length}</span>
+                        </div>
+                        <div class="kanban-cards" id="cards-${cat.replace(/[^a-zA-Z0-9]/g,'')}">
+                            ${items.length ? items.map(item => renderCard(item)).join('') : '<div class="empty-column">Sin platos</div>'}
+                        </div>
+                        <div class="kanban-dropzone" ondrop="drop(event)" ondragover="allowDrop(event)" ondragleave="dragLeave(event)"></div>
+                        <button class="add-card-btn" onclick="showAddForm('${cat}')">+ Agregar plato</button>
+                        <div class="add-form" id="form-${cat.replace(/[^a-zA-Z0-9]/g,'')}">
+                            <input type="text" id="input-${cat.replace(/[^a-zA-Z0-9]/g,'')}" placeholder="Nombre del plato" onkeydown="if(event.key==='Enter') addItem('${cat}')">
+                            <div class="add-form-actions">
+                                <button onclick="addItem('${cat}')">Guardar</button>
+                                <button class="btn-cancel" onclick="hideAddForm('${cat}')">Cancelar</button>
+                            </div>
+                        </div>
+                    </div>`;
+            });
+
+            html += '</div>';
+            board.innerHTML = html;
+        }
+
+        function renderCard(item) {
+            return `
+                <div class="kanban-card" draggable="true"
+                     ondragstart="dragStart(event, ${item.id})"
+                     ondragend="dragEnd(event)"
+                     data-id="${item.id}">
+                    ${item.dish_name}
+                    <button class="delete-card" onclick="deleteItem(${item.id})" title="Eliminar">&#10005;</button>
+                </div>`;
+        }
+
+        function showAddForm(cat) {
+            const id = 'form-' + cat.replace(/[^a-zA-Z0-9]/g,'');
+            document.getElementById(id).classList.add('show');
+            document.getElementById('input-' + cat.replace(/[^a-zA-Z0-9]/g,'')).focus();
+        }
+
+        function hideAddForm(cat) {
+            const id = 'form-' + cat.replace(/[^a-zA-Z0-9]/g,'');
+            document.getElementById(id).classList.remove('show');
+            document.getElementById('input-' + cat.replace(/[^a-zA-Z0-9]/g,'')).value = '';
+        }
+
+        async function addItem(cat) {
+            const inputId = 'input-' + cat.replace(/[^a-zA-Z0-9]/g,'');
+            const input = document.getElementById(inputId);
+            const name = input.value.trim();
+            if (!name) return;
+
+            try {
+                const res = await fetch('/api/menu', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({category: cat, dish_name: name}),
+                });
+                if (res.ok) {
+                    input.value = '';
+                    hideAddForm(cat);
+                    loadMenu();
+                } else {
+                    const d = await res.json();
+                    alert(d.error || 'Error');
+                }
+            } catch (e) {
+                alert('Error de conexion');
+            }
+        }
+
+        async function deleteItem(id) {
+            if (!confirm('Eliminar este plato del menu?')) return;
+            try {
+                const res = await fetch('/api/menu/' + id, {method: 'DELETE'});
+                if (res.ok) loadMenu();
+                else { const d = await res.json(); alert(d.error || 'Error'); }
+            } catch (e) {
+                alert('Error de conexion');
+            }
+        }
+
+        function allowDrop(e) {
+            e.preventDefault();
+            e.currentTarget.classList.add('drag-over');
+        }
+
+        function dragLeave(e) {
+            e.currentTarget.classList.remove('drag-over');
+        }
+
+        function dragStart(e, id) {
+            draggedItem = id;
+            e.dataTransfer.effectAllowed = 'move';
+            setTimeout(() => e.target.classList.add('dragging'), 0);
+        }
+
+        function dragEnd(e) {
+            e.target.classList.remove('dragging');
+            document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+        }
+
+        async function drop(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over');
+            if (!draggedItem) return;
+
+            const column = e.currentTarget.closest('.kanban-column');
+            if (!column) return;
+            const newCategory = column.dataset.category;
+
+            const item = menuData.find(i => i.id === draggedItem);
+            if (!item) return;
+
+            if (item.category === newCategory) {
+                draggedItem = null;
+                return;
+            }
+
+            try {
+                await fetch('/api/menu/' + draggedItem, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({category: newCategory}),
+                });
+                draggedItem = null;
+                loadMenu();
+            } catch (err) {
+                alert('Error al mover');
+                draggedItem = null;
+            }
+        }
+
+        function logout() {
+            fetch('/api/auth/logout', { method: 'POST' }).then(() => window.location.href = '/login');
+        }
+
+        loadMenu();
+    </script>
+</body>
+</html>
