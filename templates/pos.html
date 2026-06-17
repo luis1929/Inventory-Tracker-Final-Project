@@ -401,6 +401,7 @@
                 fetch('/api/pos/today'),
             ]);
             dishes = await dRes.json();
+            dishes = dishes.filter(d => d.portion_weight_g > 0);
             renderDishes();
             const td = await tRes.json();
             renderToday(td.summary);

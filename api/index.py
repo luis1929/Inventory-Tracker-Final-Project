@@ -1010,6 +1010,7 @@ def get_pos_dishes():
             'dish_name': dish.get('dish_name', ''),
             'sale_price': sale_price,
             'cost_total': cost_total,
+            'portion_weight_g': float(dish.get('portion_weight_g', 0) or 0),
             'profit': round(sale_price - cost_total, 2),
             'margin_pct': round(((sale_price - cost_total) / sale_price * 100) if sale_price else 0, 1),
             'recipe_count': len(recipe_details),
