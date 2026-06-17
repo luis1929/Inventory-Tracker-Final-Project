@@ -35,6 +35,7 @@ T_RECIPES = 'recipe_table'
 T_RECIPE_INGS = 'recipe_ingredients_table'
 T_USERS = 'user_profiles'
 T_MENU = 'menu_board'
+T_MENU_RECIPE = 'menu_recipe_items'
 
 
 def get_api_config():
@@ -607,6 +608,58 @@ def analytics():
     })
 
 
+def _cost_multiplier(measure):
+    m = (measure or '').lower().strip()
+    if m in ('g', 'ml', 'u', 'unidad'):
+        return 1.0
+    if m in ('kg', 'l'):
+        return 0.001
+    if m == 'lb':
+        return 0.00220462
+    return 1.0
+
+def _compute_dish_cost(dish_id):
+    r = api_req('GET', T_MENU_RECIPE, params={'dish_id': 'eq.' + str(dish_id)})
+    if r.status_code != 200:
+        return 0, []
+    items = r.json()
+    total = 0.0
+    enriched = []
+    for item in items:
+        r2 = api_req('GET', T_INGS, params={'name': 'eq.' + item['ingredient_name'], 'select': 'cost,measure'})
+        ing_data = r2.json()
+        cost = 0
+        measure = 'g'
+        if ing_data:
+            cost = float(ing_data[0].get('cost', 0))
+            measure = ing_data[0].get('measure', 'g')
+        qty = float(item.get('quantity_grams', 0))
+        mult = _cost_multiplier(measure)
+        line_cost = cost * qty * mult
+        total += line_cost
+        enriched.append({
+            'id': item['id'],
+            'dish_id': item['dish_id'],
+            'ingredient_name': item['ingredient_name'],
+            'quantity_grams': qty,
+            'line_cost': round(line_cost, 2),
+        })
+    total = round(total, 2)
+    # Update denormalized cost on menu_board
+    api_req('PATCH', T_MENU, data={'cost_total': total}, params={'id': 'eq.' + str(dish_id)})
+    return total, enriched
+
+
+@app.route('/api/ingredients/names', methods=['GET'])
+@api_auth_required
+def get_ingredient_names():
+    r = api_req('GET', T_INGS, params={'select': 'name'})
+    if r.status_code != 200:
+        return jsonify({'error': r.text}), r.status_code
+    names = [i['name'] for i in r.json()]
+    return jsonify(sorted(names))
+
+
 # ── Menu Planner Routes ──
 
 @app.route('/menu-planner')
@@ -621,7 +674,27 @@ def get_menu():
     r = api_req('GET', T_MENU, params={'order': 'sort_order.asc'})
     if r.status_code != 200:
         return jsonify({'error': r.text}), r.status_code
-    return jsonify(r.json())
+    dishes = r.json()
+    for dish in dishes:
+        dish_id = dish['id']
+        r2 = api_req('GET', T_MENU_RECIPE, params={'dish_id': 'eq.' + str(dish_id)})
+        if r2.status_code == 200:
+            items = r2.json()
+            total_cost = 0.0
+            for item in items:
+                r3 = api_req('GET', T_INGS, params={'name': 'eq.' + item['ingredient_name'], 'select': 'cost,measure'})
+                ing_data = r3.json()
+                cost = float(ing_data[0].get('cost', 0)) if ing_data else 0
+                measure = ing_data[0].get('measure', 'g') if ing_data else 'g'
+                mult = _cost_multiplier(measure)
+                line_cost = cost * float(item.get('quantity_grams', 0)) * mult
+                total_cost += line_cost
+            dish['cost_total'] = round(total_cost, 2)
+            dish['recipe_count'] = len(items)
+        else:
+            dish['cost_total'] = 0
+            dish['recipe_count'] = 0
+    return jsonify(dishes)
 
 
 @app.route('/api/menu', methods=['POST'])
@@ -671,6 +744,89 @@ def delete_menu_item(item_id):
     if r.status_code == 200 and r.json():
         return jsonify({'message': 'Eliminado'})
     return jsonify({'error': 'No encontrado'}), 404
+
+
+# ── Menu Recipe (Ingredient-Level Costing) Routes ──
+
+@app.route('/api/menu/<int:dish_id>/recipe', methods=['GET'])
+@api_auth_required
+def get_menu_recipe(dish_id):
+    _, enriched = _compute_dish_cost(dish_id)
+    return jsonify(enriched)
+
+
+@app.route('/api/menu/<int:dish_id>/recipe', methods=['POST'])
+@api_auth_required
+def add_menu_recipe_item(dish_id):
+    data = request.get_json()
+    if not data or not data.get('ingredient_name') or not data.get('quantity_grams'):
+        return jsonify({'error': 'ingredient_name y quantity_grams requeridos'}), 400
+    qty = float(data['quantity_grams'])
+    if qty <= 0:
+        return jsonify({'error': 'quantity_grams debe ser > 0'}), 400
+
+    r = api_req('POST', T_MENU_RECIPE, data={
+        'dish_id': dish_id,
+        'ingredient_name': data['ingredient_name'],
+        'quantity_grams': qty,
+    }, extra_headers={'Prefer': 'return=representation'})
+    if r.status_code not in (200, 201):
+        return jsonify({'error': r.text}), r.status_code
+    # Recompute dish cost
+    _compute_dish_cost(dish_id)
+    items = r.json()
+    return jsonify(items[0] if isinstance(items, list) else items)
+
+
+@app.route('/api/menu/<int:dish_id>/recipe/<int:item_id>', methods=['PUT'])
+@api_auth_required
+def update_menu_recipe_item(dish_id, item_id):
+    data = request.get_json()
+    update = {}
+    if 'ingredient_name' in data:
+        update['ingredient_name'] = data['ingredient_name']
+    if 'quantity_grams' in data:
+        qty = float(data['quantity_grams'])
+        if qty <= 0:
+            return jsonify({'error': 'quantity_grams debe ser > 0'}), 400
+        update['quantity_grams'] = qty
+    if not update:
+        return jsonify({'error': 'Sin datos para actualizar'}), 400
+
+    r = api_req('PATCH', T_MENU_RECIPE, data=update,
+                params={'id': 'eq.' + str(item_id), 'dish_id': 'eq.' + str(dish_id)})
+    if r.status_code not in (200, 204):
+        return jsonify({'error': r.text}), r.status_code
+    _compute_dish_cost(dish_id)
+    return jsonify({'message': 'Actualizado'})
+
+
+@app.route('/api/menu/<int:dish_id>/recipe/<int:item_id>', methods=['DELETE'])
+@api_auth_required
+def delete_menu_recipe_item(dish_id, item_id):
+    r = api_req('DELETE', T_MENU_RECIPE, params={'id': 'eq.' + str(item_id), 'dish_id': 'eq.' + str(dish_id)},
+                extra_headers={'Prefer': 'return=representation'})
+    if r.status_code == 200 and r.json():
+        _compute_dish_cost(dish_id)
+        return jsonify({'message': 'Ingrediente eliminado de la receta'})
+    return jsonify({'error': 'No encontrado'}), 404
+
+
+@app.route('/api/menu/<int:dish_id>/nutrition', methods=['PUT'])
+@api_auth_required
+def update_dish_nutrition(dish_id):
+    data = request.get_json()
+    fields = ['cost_total', 'portion_weight_g', 'protein_g', 'calories', 'carbs_g', 'fat_g', 'fiber_g', 'sodium_mg']
+    update = {}
+    for f in fields:
+        if f in data:
+            update[f] = data[f]
+    if not update:
+        return jsonify({'error': 'Sin datos'}), 400
+    r = api_req('PATCH', T_MENU, data=update, params={'id': 'eq.' + str(dish_id)})
+    if r.status_code not in (200, 204):
+        return jsonify({'error': r.text}), r.status_code
+    return jsonify({'message': 'Actualizado'})
 
 
 # ── Admin Routes ──
@@ -775,8 +931,30 @@ def run_migration():
         dish_name TEXT NOT NULL,
         sort_order INT DEFAULT 0,
         status TEXT DEFAULT 'activo',
+        cost_total DECIMAL(10,2) DEFAULT 0,
+        portion_weight_g INT DEFAULT 150,
+        protein_g DECIMAL(8,2) DEFAULT 0,
+        calories DECIMAL(8,2) DEFAULT 0,
+        carbs_g DECIMAL(8,2) DEFAULT 0,
+        fat_g DECIMAL(8,2) DEFAULT 0,
+        fiber_g DECIMAL(8,2) DEFAULT 0,
+        sodium_mg DECIMAL(8,2) DEFAULT 0,
         created_at TIMESTAMPTZ DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS menu_recipe_items (
+        id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+        dish_id BIGINT NOT NULL REFERENCES menu_board(id) ON DELETE CASCADE,
+        ingredient_name TEXT NOT NULL,
+        quantity_grams DECIMAL(10,2) NOT NULL DEFAULT 0
+    );
+    ALTER TABLE menu_board ADD COLUMN IF NOT EXISTS cost_total DECIMAL(10,2) DEFAULT 0;
+    ALTER TABLE menu_board ADD COLUMN IF NOT EXISTS portion_weight_g INT DEFAULT 150;
+    ALTER TABLE menu_board ADD COLUMN IF NOT EXISTS protein_g DECIMAL(8,2) DEFAULT 0;
+    ALTER TABLE menu_board ADD COLUMN IF NOT EXISTS calories DECIMAL(8,2) DEFAULT 0;
+    ALTER TABLE menu_board ADD COLUMN IF NOT EXISTS carbs_g DECIMAL(8,2) DEFAULT 0;
+    ALTER TABLE menu_board ADD COLUMN IF NOT EXISTS fat_g DECIMAL(8,2) DEFAULT 0;
+    ALTER TABLE menu_board ADD COLUMN IF NOT EXISTS fiber_g DECIMAL(8,2) DEFAULT 0;
+    ALTER TABLE menu_board ADD COLUMN IF NOT EXISTS sodium_mg DECIMAL(8,2) DEFAULT 0;
     '''
 
     # Try management API
