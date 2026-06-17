@@ -204,6 +204,13 @@
             cursor: pointer;
         }
         .pos-dish .dish-stock-warn:hover { text-decoration: underline; }
+        .pos-dish .dish-ing-link {
+            font-size: 0.6em;
+            color: var(--pos-primary-light);
+            margin-top: 2px;
+            cursor: pointer;
+        }
+        .pos-dish .dish-ing-link:hover { text-decoration: underline; }
 
         /* Stock Detail Modal */
         .stock-modal-overlay {
@@ -473,7 +480,7 @@
             <div class="stock-modal-overlay" id="stockModal">
                 <div class="stock-modal">
                     <div class="sm-header">
-                        &#9888; Stock de ingredientes
+                        &#128203; Ingredientes
                         <button class="close-btn" onclick="closeStockModal()">&times;</button>
                     </div>
                     <div class="sm-body" id="stockModalBody"></div>
@@ -600,11 +607,10 @@
                 const profitClass = d.profit >= 0 ? 'profit-positive' : 'profit-negative';
                 const profitLabel = d.profit >= 0 ? '+' : '';
                 const hasStockIssue = d.recipe_details && d.recipe_details.some(r => r.current_stock < r.quantity_grams);
-                let stockHtml = '';
-                if (hasStockIssue) {
-                    const lowItems = d.recipe_details.filter(r => r.current_stock < r.quantity_grams);
-                    stockHtml = '<div class="dish-stock-warn" onclick="event.stopPropagation();showStockModal(' + d.id + ')">&#9888; ' + lowItems.length + ' ingredientes insuficientes</div>';
-                }
+                const ingCount = d.recipe_details ? d.recipe_details.length : 0;
+                const warnIcon = hasStockIssue ? '&#9888; ' : '&#128203; ';
+                const warnClass = hasStockIssue ? 'dish-stock-warn' : 'dish-ing-link';
+                stockHtml = '<div class="' + warnClass + '" onclick="event.stopPropagation();showStockModal(' + d.id + ')">' + warnIcon + ingCount + ' ingredientes</div>';
                 html += '<div class="pos-dish">' +
                     '<div class="dish-name">' + d.dish_name + '</div>' +
                     '<div class="dish-meta"><span class="dish-price">$' + d.sale_price.toFixed(0) + '</span><span class="dish-profit ' + profitClass + '">' + profitLabel + d.margin_pct.toFixed(0) + '%</span></div>' +
@@ -626,10 +632,8 @@
 
         function showStockModal(dishId) {
             const d = dishes.find(i => i.id === dishId);
-            if (!d) return;
-            const lowItems = d.recipe_details.filter(r => r.current_stock < r.quantity_grams);
-            if (!lowItems.length) return;
-            let html = lowItems.map(r => {
+            if (!d || !d.recipe_details) return;
+            let html = d.recipe_details.map(r => {
                 const cls = r.current_stock < r.quantity_grams ? 'low' : '';
                 return '<div class="sm-item"><span class="si-name">' + r.ingredient_name + '</span><span>Requiere <span class="si-req">' + r.quantity_grams.toFixed(0) + 'g</span> &middot; Stock <span class="si-stock ' + cls + '">' + r.current_stock.toFixed(0) + 'g</span></span></div>';
             }).join('');
