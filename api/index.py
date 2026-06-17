@@ -584,7 +584,7 @@ def analytics():
         raw_total, final_total, enriched = _compute_dish_cost(dish_id)
         recipeCosts.append({
             'recipe_id': dish_id,
-            'recipe_name': dish.get('title', dish.get('name', 'Sin nombre')),
+            'recipe_name': dish.get('dish_name', 'Sin nombre'),
             'cost': raw_total,
             'ingredient_count': len(enriched),
         })
