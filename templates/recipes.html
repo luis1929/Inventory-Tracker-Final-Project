@@ -17,6 +17,7 @@
                 <li><a href="/ingredients">&#127838; <span>Ingredientes</span></a></li>
                 <li><a href="/recipes" class="active">&#128221; <span>Recetas</span></a></li>
                 <li><a href="/analytics">&#128200; <span>Analítica</span></a></li>
+                {% if is_admin %}<li><a href="/admin">&#9881; <span>Admin</span></a></li>{% endif %}
             </ul>
             <div class="nav-user">
                 <span class="user-email">{{ user.email }}</span>

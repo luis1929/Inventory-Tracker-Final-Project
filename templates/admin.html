@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - KitchenMaster</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <style>
+        .admin-actions { display: flex; gap: 6px; }
+        .admin-actions button { padding: 6px 14px; font-size: 0.8em; }
+        .btn-promote { background: linear-gradient(135deg, #27ae60, #1e8449) !important; box-shadow: 0 2px 8px rgba(39,174,96,0.3) !important; }
+        .btn-demote { background: linear-gradient(135deg, #e67e22, #d35400) !important; box-shadow: 0 2px 8px rgba(230,126,34,0.3) !important; }
+        .btn-delete { background: linear-gradient(135deg, #e74c3c, #c0392b) !important; box-shadow: 0 2px 8px rgba(231,76,60,0.3) !important; }
+        .role-badge { display: inline-block; padding: 2px 10px; border-radius: 50px; font-size: 0.8em; font-weight: 600; }
+        .role-admin { background: #e8f5e9; color: #27ae60; }
+        .role-user { background: #f5f5f5; color: #7a6b5d; }
+        .empty-state { text-align: center; padding: 60px 20px; color: var(--text-light); }
+        .empty-state .icon { font-size: 3em; margin-bottom: 12px; }
+        .migrate-banner { background: linear-gradient(135deg, #fef9e7, #fdf2d5); border: 2px solid #e67e22; border-radius: var(--radius); padding: 20px; margin-bottom: 20px; }
+        .setup-section { background: white; border-radius: var(--radius); padding: 28px; box-shadow: var(--shadow); border: 1px solid rgba(212,163,83,0.1); max-width: 500px; margin: 80px auto; text-align: center; }
+        .setup-section h2 { font-family: 'Playfair Display', serif; color: var(--dark); margin-bottom: 12px; }
+        .setup-section p { color: var(--text-light); margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-inner">
+            <a href="/" class="nav-brand">&#127860; <span>K</span>itchen<span>M</span>aster</a>
+            <ul class="nav-links">
+                <li><a href="/">&#127968; <span>Inicio</span></a></li>
+                <li><a href="/shopping-list">&#128722; <span>Compras</span></a></li>
+                <li><a href="/ingredients">&#127838; <span>Ingredientes</span></a></li>
+                <li><a href="/recipes">&#128221; <span>Recetas</span></a></li>
+                <li><a href="/analytics">&#128200; <span>Analítica</span></a></li>
+                <li><a href="/admin" class="active">&#9881; <span>Admin</span></a></li>
+            </ul>
+            <div class="nav-user">
+                <span class="user-email">{{ user.email }}</span>
+                <button class="logout-btn" onclick="logout()">Salir</button>
+            </div>
+        </div>
+    </nav>
+
+    <section class="hero" style="padding:40px 0;">
+        <div class="hero-content">
+            <div class="hero-badge">&#9881; Administración</div>
+            <h1>Panel de <span>Administración</span></h1>
+            <p>Gestiona usuarios y privilegios del sistema.</p>
+        </div>
+    </section>
+
+    <div class="container">
+        <div id="adminContent">
+            <div class="empty-state">
+                <div class="icon">&#8987;</div>
+                <p>Cargando panel de administración...</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        Restaurant Inventory Tracker &mdash; Panel de Administración
+    </div>
+
+    <script>
+        async function loadAdmin() {
+            const container = document.getElementById('adminContent');
+
+            try {
+                let usersRes = await fetch('/api/admin/users');
+                if (usersRes.status === 500) {
+                    const migRes = await fetch('/api/admin/migrate', { method: 'POST' });
+                    const migData = await migRes.json();
+                    if (!migData.success) {
+                        container.innerHTML = `
+                            <div class="setup-section">
+                                <div class="icon" style="font-size:3em;">&#128295;</div>
+                                <h2>Configurar Base de Datos</h2>
+                                <p>Necesitas crear la tabla de usuarios en Supabase.</p>
+                                <div class="migrate-banner" style="text-align:left;">
+                                    <pre style="font-size:0.8em;white-space:pre-wrap;text-align:left;">${migData.manual_sql || migData.error}</pre>
+                                </div>
+                                <p style="font-size:0.85em;">Ve al panel de Supabase &rarr; SQL Editor, pega el SQL de arriba y ejecútalo. Luego recarga esta página.</p>
+                            </div>
+                        `;
+                        return;
+                    }
+                    usersRes = await fetch('/api/admin/users');
+                }
+                if (!usersRes.ok) {
+                    container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><p>Error al cargar usuarios</p></div>';
+                    return;
+                }
+
+                const users = await usersRes.json();
+                if (!users.length) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="icon">&#128100;</div>
+                            <h2 style="font-family:'Playfair Display',serif;color:var(--dark);">Sin usuarios registrados</h2>
+                            <p>Aún no hay usuarios en el sistema. Los usuarios aparecerán aquí cuando inicien sesión.</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                let html = '<div class="content-card"><h2>&#128101; Usuarios Registrados</h2><div class="table-wrapper"><table><thead><tr><th>Email</th><th>Rol</th><th>Acción</th></tr></thead><tbody>';
+                users.forEach(u => {
+                    const isAdmin = u.role === 'admin';
+                    html += `<tr>
+                        <td><strong>${u.email}</strong></td>
+                        <td><span class="role-badge ${isAdmin ? 'role-admin' : 'role-user'}">${isAdmin ? 'Admin' : 'Usuario'}</span></td>
+                        <td>
+                            <div class="admin-actions">
+                                ${isAdmin
+                                    ? `<button class="btn-demote" onclick="updateRole('${u.email}', 'user')">Quitar Admin</button>`
+                                    : `<button class="btn-promote" onclick="updateRole('${u.email}', 'admin')">Hacer Admin</button>`
+                                }
+                                <button class="btn-delete" onclick="deleteUser('${u.email}')">Eliminar</button>
+                            </div>
+                        </td>
+                    </tr>`;
+                });
+                html += '</tbody></table></div></div>';
+                container.innerHTML = html;
+
+            } catch (e) {
+                container.innerHTML = '<div class="empty-state"><div class="icon">&#9888;</div><p>Error de conexión</p></div>';
+            }
+        }
+
+        async function updateRole(email, role) {
+            if (!confirm(`¿${role === 'admin' ? 'Promover a Admin' : 'Quitar permisos de Admin'} a ${email}?`)) return;
+            try {
+                const res = await fetch(`/api/admin/users/${encodeURIComponent(email)}/role`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ role })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    loadAdmin();
+                } else {
+                    alert('Error: ' + (data.error || 'Desconocido'));
+                }
+            } catch (e) {
+                alert('Error de conexión');
+            }
+        }
+
+        async function deleteUser(email) {
+            if (!confirm(`¿Eliminar a ${email} de la lista de usuarios?`)) return;
+            try {
+                const res = await fetch(`/api/admin/users/${encodeURIComponent(email)}`, {
+                    method: 'DELETE'
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    loadAdmin();
+                } else {
+                    alert('Error: ' + (data.error || 'Desconocido'));
+                }
+            } catch (e) {
+                alert('Error de conexión');
+            }
+        }
+
+        function logout() {
+            fetch('/api/auth/logout', { method: 'POST' }).then(() => window.location.href = '/login');
+        }
+
+        loadAdmin();
+    </script>
+</body>
+</html>

@@ -24,9 +24,15 @@ SUPABASE_ANON = os.getenv('SUPABASE_ANON_KEY')
 if not SUPABASE_URL or not SUPABASE_KEY:
     print("ERROR: Configura SUPABASE_URL y SUPABASE_SERVICE_KEY en las variables de entorno", file=sys.stderr)
 
+ADMIN_EMAILS = set()
+admin_emails_env = os.getenv('ADMIN_EMAILS', '')
+if admin_emails_env:
+    ADMIN_EMAILS = set(e.strip().lower() for e in admin_emails_env.split(',') if e.strip())
+
 T_INGS = 'ingredient_table'
 T_RECIPES = 'recipe_table'
 T_RECIPE_INGS = 'recipe_ingredients_table'
+T_USERS = 'user_profiles'
 
 
 def get_api_config():
@@ -87,6 +93,33 @@ def api_auth_required(f):
     return decorated
 
 
+def is_admin(email):
+    if not email:
+        return False
+    email = email.lower()
+    if email in ADMIN_EMAILS:
+        return True
+    r = api_req('GET', T_USERS, params={'email': 'eq.' + email, 'select': 'role'})
+    if r.status_code == 200:
+        profiles = r.json()
+        if profiles and profiles[0].get('role') == 'admin':
+            return True
+    return False
+
+
+def sync_user_profile(user_id, email):
+    role = 'admin' if email.lower() in ADMIN_EMAILS else 'user'
+    api_req('POST', T_USERS,
+            data={'id': user_id, 'email': email, 'role': role},
+            extra_headers={'Prefer': 'resolution=merge-duplicates'})
+
+
+@app.context_processor
+def inject_admin():
+    user = session.get('user', {})
+    return {'is_admin': is_admin(user.get('email', ''))}
+
+
 # ── Auth Routes ──
 
 @app.route('/login')
@@ -126,6 +159,7 @@ def auth_signup():
             'email': body['user']['email'],
             'token': body['access_token'],
         }
+        sync_user_profile(body['user']['id'], body['user']['email'])
         return jsonify({'message': 'Cuenta creada', 'user': {'email': body['user']['email']}})
 
     return jsonify({'message': 'Revisa tu email para confirmar la cuenta. Por ahora, usa el modo demo.', 'confirmation_sent': True})
@@ -151,6 +185,7 @@ def auth_login():
         'email': body['user']['email'],
         'token': body['access_token'],
     }
+    sync_user_profile(body['user']['id'], body['user']['email'])
     return jsonify({'message': 'Inicio de sesión exitoso', 'user': {'email': body['user']['email']}})
 
 
@@ -550,6 +585,76 @@ def analytics():
     })
 
 
+# ── Admin Routes ──
+
+@app.route('/admin')
+@login_required
+def admin_page():
+    user = session.get('user', {})
+    if not is_admin(user.get('email', '')):
+        return redirect('/')
+    return render_template('admin.html', user=user)
+
+
+@app.route('/api/admin/users', methods=['GET'])
+@api_auth_required
+def admin_get_users():
+    user = session.get('user', {})
+    if not is_admin(user.get('email', '')):
+        return jsonify({'error': 'No autorizado'}), 403
+    r = api_req('GET', T_USERS, params={'order': 'created_at.desc'})
+    if r.status_code != 200:
+        return jsonify({'error': r.text}), r.status_code
+    return jsonify(r.json())
+
+
+@app.route('/api/admin/users', methods=['POST'])
+@api_auth_required
+def admin_create_user():
+    user = session.get('user', {})
+    if not is_admin(user.get('email', '')):
+        return jsonify({'error': 'No autorizado'}), 403
+    data = request.get_json()
+    if not data or not data.get('email'):
+        return jsonify({'error': 'Email requerido'}), 400
+    api_req('POST', T_USERS,
+            data={'id': data.get('id', str(uuid.uuid4())),
+                  'email': data['email'],
+                  'role': data.get('role', 'user')},
+            extra_headers={'Prefer': 'resolution=merge-duplicates'})
+    return jsonify({'message': 'Usuario agregado'})
+
+
+@app.route('/api/admin/users/<email>/role', methods=['POST'])
+@api_auth_required
+def admin_update_role(email):
+    user = session.get('user', {})
+    if not is_admin(user.get('email', '')):
+        return jsonify({'error': 'No autorizado'}), 403
+    data = request.get_json()
+    if not data or not data.get('role'):
+        return jsonify({'error': 'Rol requerido'}), 400
+    if data['role'] not in ('user', 'admin'):
+        return jsonify({'error': 'Rol inválido'}), 400
+    r = api_req('PATCH', T_USERS, data={'role': data['role']},
+                params={'email': 'eq.' + email})
+    if r.status_code not in (200, 204):
+        return jsonify({'error': r.text}), r.status_code
+    return jsonify({'message': 'Rol actualizado a ' + data['role']})
+
+
+@app.route('/api/admin/users/<email>', methods=['DELETE'])
+@api_auth_required
+def admin_delete_user(email):
+    user = session.get('user', {})
+    if not is_admin(user.get('email', '')):
+        return jsonify({'error': 'No autorizado'}), 403
+    if email.lower() == user.get('email', '').lower():
+        return jsonify({'error': 'No puedes eliminarte a ti mismo'}), 400
+    api_req('DELETE', T_USERS, params={'email': 'eq.' + email})
+    return jsonify({'message': 'Usuario eliminado'})
+
+
 @app.route('/api/admin/migrate', methods=['POST'])
 @api_auth_required
 def run_migration():
@@ -565,6 +670,12 @@ def run_migration():
     ALTER TABLE ingredient_table ADD COLUMN IF NOT EXISTS user_id UUID DEFAULT auth.uid();
     ALTER TABLE recipe_table ADD COLUMN IF NOT EXISTS user_id UUID DEFAULT auth.uid();
     ALTER TABLE recipe_ingredients_table ADD COLUMN IF NOT EXISTS user_id UUID DEFAULT auth.uid();
+    CREATE TABLE IF NOT EXISTS user_profiles (
+        id UUID PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        role TEXT NOT NULL DEFAULT 'user',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+    );
     '''
 
     # Try management API
