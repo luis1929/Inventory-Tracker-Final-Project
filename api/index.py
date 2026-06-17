@@ -474,31 +474,68 @@ def check_recipe(recipe_id):
 @app.route('/api/shopping-list', methods=['GET'])
 @api_auth_required
 def global_shopping_list():
-    r = api_req('GET', T_RECIPES)
-    recipes = r.json() if r.status_code == 200 else []
-    allMissing = {}
+    # Get all inventory
+    r = api_req('GET', T_INGS)
+    ingredients = r.json() if r.status_code == 200 else []
+    stock_map = {i['name']: i for i in ingredients}
 
-    for recipe in recipes:
-        rid = recipe['recipe_id']
-        r2 = api_req('GET', T_RECIPE_INGS,
-                     params={'recipe_id': 'eq.' + str(rid),
-                             'select': 'ingredient_name,quantity_needed,measure,ingredient_table(count,cost)'})
-        for item in r2.json():
-            name = item['ingredient_name']
-            needed = item['quantity_needed']
-            measure = item['measure']
-            stock = item['ingredient_table']['count']
-            cost = item['ingredient_table']['cost']
-            missing = max(0.0, needed - stock)
+    # Get all menu recipe items (ingredients across all dishes)
+    rr = api_req('GET', T_MENU_RECIPE)
+    all_items = rr.json() if rr.status_code == 200 else []
 
-            if missing > 0:
-                if name not in allMissing:
-                    allMissing[name] = {'qty': 0, 'measure': measure, 'cost': cost}
-                allMissing[name]['qty'] += missing
+    needed = {}
+    for item in all_items:
+        name = item['ingredient_name']
+        qty = float(item.get('quantity_grams', 0))
+        if name not in needed:
+            needed[name] = 0
+        needed[name] += qty
 
-    shoppingList = [{'name': k, 'qty': round(v['qty'], 2), 'measure': v['measure'], 'cost': v['cost']}
-                    for k, v in allMissing.items()]
-    totalCost = sum(s['qty'] * s['cost'] for s in shoppingList)
+    shoppingList = []
+    totalCost = 0
+    # Convert grams to appropriate measure for shopping
+    for name, qty_needed in needed.items():
+        ing = stock_map.get(name)
+        if not ing:
+            continue
+        stock = float(ing.get('count', 0))
+        missing = max(0, qty_needed - stock)
+        if missing <= 0:
+            continue
+
+        measure = ing.get('measure', 'g')
+        cost = float(ing.get('cost', 0))
+
+        # Convert missing grams to display unit
+        if measure == 'g':
+            display_qty = round(missing, 0)
+            display_measure = 'g'
+        elif measure == 'kg':
+            display_qty = round(missing / 1000, 2)
+            display_measure = 'kg'
+        elif measure == 'ml':
+            display_qty = round(missing, 0)
+            display_measure = 'ml'
+        elif measure == 'l':
+            display_qty = round(missing / 1000, 2)
+            display_measure = 'l'
+        elif measure == 'lb':
+            display_qty = round(missing / 453.592, 2)
+            display_measure = 'lb'
+        else:
+            display_qty = round(missing, 0)
+            display_measure = measure
+
+        item_cost = display_qty * cost
+        totalCost += item_cost
+        shoppingList.append({
+            'name': name,
+            'qty': display_qty,
+            'measure': display_measure,
+            'cost': cost,
+        })
+
+    shoppingList.sort(key=lambda x: x['name'])
     return jsonify({'shopping_list': shoppingList, 'total_cost': round(totalCost, 2)})
 
 
