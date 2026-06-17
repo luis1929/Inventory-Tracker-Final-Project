@@ -83,7 +83,8 @@
         <div class="content-card">
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
                 <h2 style="margin:0;border:none;padding:0;">&#128202; Inventario Actual</h2>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                    <span id="cartBadge" style="display:none;background:var(--primary);color:white;padding:4px 14px;border-radius:50px;font-size:0.85em;font-weight:600;cursor:pointer;" onclick="toggleCart()">&#128722; <span id="cartCount">0</span></span>
                     <a href="/api/ingredients/export" class="btn btn-secondary" style="text-decoration:none;font-size:0.85em;">&#128229; Exportar CSV</a>
                 </div>
             </div>
@@ -103,6 +104,24 @@
         </div>
     </div>
 
+    <!-- Cart Panel -->
+    <div id="cartPanel" class="cart-panel hidden">
+        <div class="cart-header">
+            <h3>&#128722; Carrito de Compras</h3>
+            <button class="close" onclick="toggleCart()">&times;</button>
+        </div>
+        <div id="cartBody" class="cart-body">
+            <p class="cart-empty">Selecciona productos para agregar al carrito</p>
+        </div>
+        <div class="cart-footer" id="cartFooter" style="display:none;">
+            <button class="btn btn-secondary" onclick="copyCartBySupplier()" style="width:100%;font-size:0.9em;">&#128203; Copiar por proveedor</button>
+            <button class="btn" onclick="copyCartAll()" style="width:100%;margin-top:6px;font-size:0.9em;">&#128203; Copiar todo</button>
+            <button class="btn" style="background:#e74c3c;margin-top:6px;width:100%;font-size:0.85em;" onclick="clearCart()">&#128465; Vaciar carrito</button>
+        </div>
+    </div>
+    <div id="cartOverlay" class="cart-overlay hidden" onclick="toggleCart()"></div>
+    </div>
+
     <div class="footer">
         Restaurant Inventory Tracker &mdash; Hecho con <span>&#10084;</span> para cocineros
     </div>
@@ -110,6 +129,190 @@
     <script>
         let allData = [];
         let allSuppliers = [];
+        let cart = JSON.parse(localStorage.getItem('compraCart') || '[]');
+
+        function saveCart() {
+            localStorage.setItem('compraCart', JSON.stringify(cart));
+            updateCartBadge();
+        }
+
+        function isInCart(name) {
+            return cart.some(i => i.name === name);
+        }
+
+        function toggleCartItem(name, cb) {
+            if (cb.checked) {
+                const ing = allData.find(i => i.name === name);
+                if (ing && !isInCart(name)) {
+                    cart.push({
+                        name: ing.name,
+                        supplier: ing.supplier || 'Sin proveedor',
+                        brand: ing.brand || '',
+                        presentation: ing.presentation || '',
+                        measure: ing.measure || 'u',
+                        cost: parseFloat(ing.cost) || 0,
+                        classification: ing.classification || '',
+                        qty: 1,
+                    });
+                }
+            } else {
+                cart = cart.filter(i => i.name !== name);
+            }
+            saveCart();
+            renderCart();
+        }
+
+        function toggleAll(master) {
+            document.querySelectorAll('.cart-checkbox').forEach(cb => {
+                cb.checked = master.checked;
+                const name = cb.dataset.name;
+                if (master.checked) {
+                    const ing = allData.find(i => i.name === name);
+                    if (ing && !isInCart(name)) {
+                        cart.push({
+                            name: ing.name,
+                            supplier: ing.supplier || 'Sin proveedor',
+                            brand: ing.brand || '',
+                            presentation: ing.presentation || '',
+                            measure: ing.measure || 'u',
+                            cost: parseFloat(ing.cost) || 0,
+                            classification: ing.classification || '',
+                            qty: 1,
+                        });
+                    }
+                } else {
+                    cart = cart.filter(i => i.name !== name);
+                }
+            });
+            saveCart();
+            renderCart();
+        }
+
+        function updateQty(name, delta) {
+            const item = cart.find(i => i.name === name);
+            if (item) {
+                item.qty = Math.max(1, (item.qty || 1) + delta);
+                saveCart();
+                renderCart();
+            }
+        }
+
+        function removeFromCart(name) {
+            cart = cart.filter(i => i.name !== name);
+            saveCart();
+            renderCart();
+            // Uncheck the checkbox if visible
+            document.querySelectorAll(`.cart-checkbox[data-name="${name}"]`).forEach(cb => cb.checked = false);
+            const master = document.getElementById('selectAll');
+            if (master) master.checked = document.querySelectorAll('.cart-checkbox:checked').length === document.querySelectorAll('.cart-checkbox').length;
+        }
+
+        function clearCart() {
+            if (!confirm('Vaciar carrito?')) return;
+            cart = [];
+            saveCart();
+            renderCart();
+            document.querySelectorAll('.cart-checkbox').forEach(cb => cb.checked = false);
+            const master = document.getElementById('selectAll');
+            if (master) master.checked = false;
+        }
+
+        function toggleCart() {
+            const panel = document.getElementById('cartPanel');
+            const overlay = document.getElementById('cartOverlay');
+            panel.classList.toggle('hidden');
+            overlay.classList.toggle('hidden');
+            if (!panel.classList.contains('hidden')) renderCart();
+        }
+
+        function updateCartBadge() {
+            const badge = document.getElementById('cartBadge');
+            const count = document.getElementById('cartCount');
+            count.textContent = cart.length;
+            badge.style.display = cart.length > 0 ? 'inline-block' : 'none';
+        }
+
+        function renderCart() {
+            const body = document.getElementById('cartBody');
+            const footer = document.getElementById('cartFooter');
+            updateCartBadge();
+
+            if (!cart.length) {
+                body.innerHTML = '<p class="cart-empty">Selecciona productos para agregar al carrito</p>';
+                footer.style.display = 'none';
+                return;
+            }
+            footer.style.display = 'block';
+
+            // Group by supplier
+            const groups = {};
+            cart.forEach(item => {
+                const s = item.supplier || 'Sin proveedor';
+                if (!groups[s]) groups[s] = [];
+                groups[s].push(item);
+            });
+
+            let html = '';
+            let grandTotal = 0;
+            const sortedSuppliers = Object.keys(groups).sort();
+            sortedSuppliers.forEach(sup => {
+                const items = groups[sup];
+                let subTotal = 0;
+                html += `<div class="cart-supplier-group">
+                    <div class="cart-supplier-header">&#128666; ${sup} <span class="cart-supplier-count">${items.length} art.</span></div>`;
+                items.forEach(item => {
+                    const lineTotal = item.qty * item.cost;
+                    subTotal += lineTotal;
+                    html += `<div class="cart-item">
+                        <div class="cart-item-info">
+                            <strong>${item.name}</strong>
+                            <span class="cart-item-detail">${item.brand ? item.brand + ' — ' : ''}${item.presentation || ''}</span>
+                        </div>
+                        <div class="cart-item-qty">
+                            <button class="qty-btn" onclick="updateQty('${item.name}', -1)">−</button>
+                            <span class="qty-val">${item.qty}</span>
+                            <button class="qty-btn" onclick="updateQty('${item.name}', 1)">+</button>
+                            <span class="cart-item-cost">$${(lineTotal).toFixed(0)}</span>
+                            <button class="qty-btn remove" onclick="removeFromCart('${item.name}')" title="Quitar">&times;</button>
+                        </div>
+                    </div>`;
+                });
+                grandTotal += subTotal;
+                html += `<div class="cart-subtotal">Subtotal: <strong>$${subTotal.toFixed(0)}</strong></div>`;
+                html += `</div>`;
+            });
+
+            html += `<div class="cart-grand-total">Total: <strong>$${grandTotal.toFixed(0)}</strong></div>`;
+            body.innerHTML = html;
+        }
+
+        function copyCartBySupplier() {
+            const groups = {};
+            cart.forEach(item => {
+                const s = item.supplier || 'Sin proveedor';
+                if (!groups[s]) groups[s] = [];
+                groups[s].push(item);
+            });
+            let text = 'CARRITO DE COMPRAS POR PROVEEDOR\n=================================\n\n';
+            Object.keys(groups).sort().forEach(sup => {
+                text += `--- ${sup} ---\n`;
+                groups[sup].forEach(item => {
+                    text += `${item.name} x${item.qty} — $${(item.qty * item.cost).toFixed(0)}\n`;
+                });
+                text += '\n';
+            });
+            navigator.clipboard.writeText(text).then(() => alert('Lista por proveedor copiada'));
+        }
+
+        function copyCartAll() {
+            let text = 'CARRITO DE COMPRAS\n==================\n\n';
+            cart.forEach(item => {
+                text += `${item.name} x${item.qty} — $${(item.qty * item.cost).toFixed(0)}\n`;
+            });
+            const total = cart.reduce((s, i) => s + i.qty * i.cost, 0);
+            text += `\nTotal: $${total.toFixed(0)}`;
+            navigator.clipboard.writeText(text).then(() => alert('Lista copiada'));
+        }
 
         async function loadInventory() {
             const [res, supRes] = await Promise.all([
@@ -146,7 +349,7 @@
             }
 
             const maxCount = Math.max(...data.map(i => i.count), 1);
-            let html = '<div class="table-wrapper"><table><thead><tr><th>Clasificacion</th><th>Producto</th><th>Marca</th><th>Proveedor</th><th>Presentacion</th><th>Unidad</th><th>Stock</th><th>Costo / Unidad</th><th>Valor Total</th><th>Obs.</th><th>Acción</th></tr></thead><tbody>';
+            let html = '<div class="table-wrapper"><table><thead><tr><th style="width:32px;"><input type="checkbox" id="selectAll" onchange="toggleAll(this)"></th><th>Clasificacion</th><th>Producto</th><th>Marca</th><th>Proveedor</th><th>Presentacion</th><th>Unidad</th><th>Stock</th><th>Costo / Unidad</th><th>Valor Total</th><th>Obs.</th><th>Acción</th></tr></thead><tbody>';
 
             data.forEach(ing => {
                 const totalValue = parseFloat(ing.count) * parseFloat(ing.cost);
@@ -154,8 +357,10 @@
                 const low = ing.count <= 0 || ing.count < 5;
                 const barColor = ing.count <= 0 ? '#e74c3c' : (ing.count < 5 ? '#e67e22' : '#27ae60');
                 const barBg = ing.count <= 0 ? '#fadbd8' : (ing.count < 5 ? '#fef9e7' : '#d5f5e3');
+                const checked = isInCart(ing.name) ? 'checked' : '';
 
                 html += `<tr${low ? ' class="low-stock-row"' : ''}>
+                    <td><input type="checkbox" class="cart-checkbox" data-name="${ing.name}" ${checked} onchange="toggleCartItem('${ing.name}', this)"></td>
                     <td style="font-size:0.85em;color:var(--text-light);">${ing.classification || '-'}</td>
                     <td><strong>${ing.name}</strong> ${low ? '<span title="Stock bajo">&#9888;</span>' : ''}</td>
                     <td style="font-size:0.9em;">${ing.brand || '-'}</td>
