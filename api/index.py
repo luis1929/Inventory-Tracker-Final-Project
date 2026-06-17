@@ -549,6 +549,10 @@ def global_shopping_list():
             'qty': display_qty,
             'measure': display_measure,
             'cost': cost,
+            'supplier': ing.get('supplier', 'Sin proveedor'),
+            'brand': ing.get('brand', ''),
+            'presentation': ing.get('presentation', ''),
+            'classification': ing.get('classification', ''),
         })
 
     shoppingList.sort(key=lambda x: x['name'])
