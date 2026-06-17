@@ -75,11 +75,20 @@ def auth_req(method, path, data=None, token=None):
     return r
 
 
+def _ensure_demo_session():
+    if 'user' not in session:
+        session.permanent = True
+        session['user'] = {
+            'id': '00000000-0000-0000-0000-000000000000',
+            'email': 'demo@kitchenmaster.app',
+            'token': '',
+        }
+
+
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if 'user' not in session:
-            return redirect('/login')
+        _ensure_demo_session()
         return f(*args, **kwargs)
     return decorated
 
@@ -87,8 +96,7 @@ def login_required(f):
 def api_auth_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if 'user' not in session:
-            return jsonify({'error': 'No autorizado. Inicia sesión primero.'}), 401
+        _ensure_demo_session()
         return f(*args, **kwargs)
     return decorated
 
@@ -124,16 +132,12 @@ def inject_admin():
 
 @app.route('/login')
 def login_page():
-    if 'user' in session:
-        return redirect('/')
-    return render_template('login.html')
+    return redirect('/')
 
 
 @app.route('/register')
 def register_page():
-    if 'user' in session:
-        return redirect('/')
-    return render_template('register.html')
+    return redirect('/')
 
 
 @app.route('/api/auth/signup', methods=['POST'])
@@ -270,9 +274,8 @@ def auth_update_password():
 
 @app.route('/')
 def index():
-    if 'user' in session:
-        return render_template('index.html', user=session['user'])
-    return render_template('landing.html')
+    _ensure_demo_session()
+    return render_template('index.html', user=session['user'])
 
 
 @app.route('/ingredients')
