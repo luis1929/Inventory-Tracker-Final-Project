@@ -201,6 +201,24 @@
             font-size: 0.6em;
             color: #e67e22;
             margin-top: 2px;
+            cursor: pointer;
+        }
+        .pos-dish .stock-detail {
+            font-size: 0.58em;
+            color: #c0392b;
+            background: #fdf2f2;
+            border-radius: 4px;
+            padding: 3px 5px;
+            margin-top: 2px;
+            display: none;
+            max-height: 80px;
+            overflow-y: auto;
+        }
+        .pos-dish .stock-detail.open { display: block; }
+        .pos-dish .stock-detail .si-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 4px;
         }
 
         /* Ticket Panel */
@@ -532,11 +550,19 @@
                 const profitClass = d.profit >= 0 ? 'profit-positive' : 'profit-negative';
                 const profitLabel = d.profit >= 0 ? '+' : '';
                 const hasStockIssue = d.recipe_details && d.recipe_details.some(r => r.current_stock < r.quantity_grams);
+                let stockHtml = '';
+                if (hasStockIssue) {
+                    const lowItems = d.recipe_details.filter(r => r.current_stock < r.quantity_grams);
+                    stockHtml = '<div class="dish-stock-warn" onclick="event.stopPropagation();this.nextElementSibling.classList.toggle(\'open\')">&#9888; ' + lowItems.length + ' ingredientes insuficientes</div>' +
+                        '<div class="stock-detail">' +
+                        lowItems.map(r => '<div class="si-row"><span>' + r.ingredient_name + '</span><span>stock ' + r.current_stock.toFixed(0) + 'g / req ' + r.quantity_grams.toFixed(0) + 'g</span></div>').join('') +
+                        '</div>';
+                }
                 html += '<div class="pos-dish">' +
                     '<div class="dish-name">' + d.dish_name + '</div>' +
                     '<div class="dish-meta"><span class="dish-price">$' + d.sale_price.toFixed(0) + '</span><span class="dish-profit ' + profitClass + '">' + profitLabel + d.margin_pct.toFixed(0) + '%</span></div>' +
                     '<div class="dish-meta"><span class="dish-cost">Costo $' + d.cost_total.toFixed(0) + '</span></div>' +
-                    (hasStockIssue ? '<div class="dish-stock-warn">&#9888; Stock insuficiente</div>' : '') +
+                    stockHtml +
                     '<div class="qty-selector">' +
                     '<button onclick="event.stopPropagation();updateQty(' + d.id + ',' + (qty - 1) + ')">&minus;</button>' +
                     '<span>' + qty + '</span>' +
