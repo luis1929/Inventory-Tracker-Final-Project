@@ -626,26 +626,31 @@ def _compute_dish_cost(dish_id):
     total = 0.0
     enriched = []
     for item in items:
-        r2 = api_req('GET', T_INGS, params={'name': 'eq.' + item['ingredient_name'], 'select': 'cost,measure'})
-        ing_data = r2.json()
-        cost = 0
-        measure = 'g'
-        if ing_data:
-            cost = float(ing_data[0].get('cost', 0))
-            measure = ing_data[0].get('measure', 'g')
         qty = float(item.get('quantity_grams', 0))
-        mult = _cost_multiplier(measure)
-        line_cost = cost * qty * mult
+        # Use recipe-specific unit_cost if present, otherwise compute from ingredient_table
+        if item.get('unit_cost') is not None and float(item.get('unit_cost', 0)) > 0:
+            unit_cost = float(item['unit_cost'])
+        else:
+            r2 = api_req('GET', T_INGS, params={'name': 'eq.' + item['ingredient_name'], 'select': 'cost,measure'})
+            ing_data = r2.json()
+            if ing_data:
+                cost = float(ing_data[0].get('cost', 0))
+                measure = ing_data[0].get('measure', 'g')
+                mult = _cost_multiplier(measure)
+                unit_cost = cost * mult
+            else:
+                unit_cost = 0
+        line_cost = qty * unit_cost
         total += line_cost
         enriched.append({
             'id': item['id'],
             'dish_id': item['dish_id'],
             'ingredient_name': item['ingredient_name'],
             'quantity_grams': qty,
+            'unit_cost': round(unit_cost, 4),
             'line_cost': round(line_cost, 2),
         })
     total = round(total, 2)
-    # Update denormalized cost on menu_board
     api_req('PATCH', T_MENU, data={'cost_total': total}, params={'id': 'eq.' + str(dish_id)})
     return total, enriched
 
@@ -677,23 +682,9 @@ def get_menu():
     dishes = r.json()
     for dish in dishes:
         dish_id = dish['id']
-        r2 = api_req('GET', T_MENU_RECIPE, params={'dish_id': 'eq.' + str(dish_id)})
-        if r2.status_code == 200:
-            items = r2.json()
-            total_cost = 0.0
-            for item in items:
-                r3 = api_req('GET', T_INGS, params={'name': 'eq.' + item['ingredient_name'], 'select': 'cost,measure'})
-                ing_data = r3.json()
-                cost = float(ing_data[0].get('cost', 0)) if ing_data else 0
-                measure = ing_data[0].get('measure', 'g') if ing_data else 'g'
-                mult = _cost_multiplier(measure)
-                line_cost = cost * float(item.get('quantity_grams', 0)) * mult
-                total_cost += line_cost
-            dish['cost_total'] = round(total_cost, 2)
-            dish['recipe_count'] = len(items)
-        else:
-            dish['cost_total'] = 0
-            dish['recipe_count'] = 0
+        _, enriched = _compute_dish_cost(dish_id)
+        dish['cost_total'] = round(sum(e['line_cost'] for e in enriched), 2)
+        dish['recipe_count'] = len(enriched)
     return jsonify(dishes)
 
 
@@ -765,11 +756,16 @@ def add_menu_recipe_item(dish_id):
     if qty <= 0:
         return jsonify({'error': 'quantity_grams debe ser > 0'}), 400
 
-    r = api_req('POST', T_MENU_RECIPE, data={
+    payload = {
         'dish_id': dish_id,
         'ingredient_name': data['ingredient_name'],
         'quantity_grams': qty,
-    }, extra_headers={'Prefer': 'return=representation'})
+    }
+    if data.get('unit_cost') is not None:
+        payload['unit_cost'] = float(data['unit_cost'])
+
+    r = api_req('POST', T_MENU_RECIPE, data=payload,
+                extra_headers={'Prefer': 'return=representation'})
     if r.status_code not in (200, 201):
         return jsonify({'error': r.text}), r.status_code
     # Recompute dish cost
@@ -790,6 +786,8 @@ def update_menu_recipe_item(dish_id, item_id):
         if qty <= 0:
             return jsonify({'error': 'quantity_grams debe ser > 0'}), 400
         update['quantity_grams'] = qty
+    if data.get('unit_cost') is not None:
+        update['unit_cost'] = float(data['unit_cost'])
     if not update:
         return jsonify({'error': 'Sin datos para actualizar'}), 400
 
@@ -945,8 +943,10 @@ def run_migration():
         id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         dish_id BIGINT NOT NULL REFERENCES menu_board(id) ON DELETE CASCADE,
         ingredient_name TEXT NOT NULL,
-        quantity_grams DECIMAL(10,2) NOT NULL DEFAULT 0
+        quantity_grams DECIMAL(10,2) NOT NULL DEFAULT 0,
+        unit_cost DECIMAL(10,4) DEFAULT 0
     );
+    ALTER TABLE menu_recipe_items ADD COLUMN IF NOT EXISTS unit_cost DECIMAL(10,4) DEFAULT 0;
     ALTER TABLE menu_board ADD COLUMN IF NOT EXISTS cost_total DECIMAL(10,2) DEFAULT 0;
     ALTER TABLE menu_board ADD COLUMN IF NOT EXISTS portion_weight_g INT DEFAULT 150;
     ALTER TABLE menu_board ADD COLUMN IF NOT EXISTS protein_g DECIMAL(8,2) DEFAULT 0;

@@ -474,7 +474,7 @@
                 <h3>&#127858; Receta (Ingredientes)</h3>
                 <table class="recipe-table" id="recipeTable">
                     <thead>
-                        <tr><th>Ingrediente</th><th class="num">Gramos</th><th class="num">Costo</th><th></th></tr>
+                        <tr><th>Ingrediente</th><th class="num">Gramos</th><th class="num">$/g</th><th class="num">Costo</th><th></th></tr>
                     </thead>
                     <tbody id="recipeBody"></tbody>
                 </table>
@@ -743,6 +743,7 @@
                 <tr>
                     <td>${it.ingredient_name}</td>
                     <td class="num">${it.quantity_grams}</td>
+                    <td class="num">${it.unit_cost ? it.unit_cost.toFixed(4) : '—'}</td>
                     <td class="num">$${it.line_cost.toFixed(2)}</td>
                     <td><button class="del-btn" onclick="deleteRecipeItem(${it.id})" title="Quitar">&times;</button></td>
                 </tr>
@@ -750,6 +751,7 @@
                 <tr class="total-row">
                     <td>TOTAL</td>
                     <td class="num">${items.reduce((s, it) => s + it.quantity_grams, 0).toFixed(1)}g</td>
+                    <td></td>
                     <td class="num cost">$${total.toFixed(2)}</td>
                     <td></td>
                 </tr>
