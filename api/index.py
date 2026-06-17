@@ -226,7 +226,8 @@ def auth_recover():
     if not data or not data.get('email'):
         return jsonify({'error': 'Email requerido'}), 400
 
-    r = auth_req('POST', 'recover', data={'email': data['email']})
+    site_url = request.host_url.rstrip('/')
+    r = auth_req('POST', 'recover', data={'email': data['email'], 'redirect_to': site_url + '/reset-password'})
     body = r.json()
     if r.status_code not in (200, 201, 204):
         return jsonify({'error': body.get('msg') or body.get('error_description') or 'Error al enviar email'}), r.status_code
