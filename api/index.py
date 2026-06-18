@@ -673,10 +673,17 @@ def get_projections():
     projections = r.json() if r.status_code == 200 else []
     mr = api_req('GET', T_MENU)
     menu_map = {m['id']: m for m in (mr.json() if mr.status_code == 200 else [])}
+    rr = api_req('GET', T_MENU_RECIPE)
+    recipe_items = rr.json() if rr.status_code == 200 else []
+    ing_count = {}
+    for ri in recipe_items:
+        did = ri.get('menu_item_id') or ri['dish_id']
+        ing_count[did] = ing_count.get(did, 0) + 1
     for p in projections:
         dish = menu_map.get(p['dish_id'])
         if dish:
             p['category'] = dish.get('category', '')
+        p['ingredient_count'] = ing_count.get(p['dish_id'], 0)
     return jsonify({'projections': projections, 'table_exists': True})
 
 @app.route('/api/projections/<int:proj_id>', methods=['PATCH'])

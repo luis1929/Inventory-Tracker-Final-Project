@@ -522,16 +522,15 @@
                 <div style="max-height:300px;overflow-y:auto;border:1px solid var(--cream-dark);border-radius:6px;">
                 <table class="proj-display-table">
                     <thead><tr>
-                        <th>Plato</th><th>Und.</th><th>Costo Und.</th><th>Costo Total</th><th>Ingredientes</th>
+                        <th>Plato</th><th>Und.</th><th>Costo Plato</th><th># Ingredientes</th>
                     </tr></thead><tbody>`;
 
             active.forEach(p => {
                 html += `<tr>
                     <td><strong>${p.dish_name}</strong></td>
                     <td>${p.projected_units || 0}</td>
-                    <td>$${(p.unit_cost || 0).toFixed(2)}</td>
-                    <td>$${(p.total_dish_cost || 0).toFixed(0)}</td>
-                    <td>${((p.estimated_qty || 0) / 1000).toFixed(1)} kg</td>
+                    <td>$${(p.unit_cost || 0).toFixed(0)}</td>
+                    <td>${p.ingredient_count || 0}</td>
                 </tr>`;
             });
 
