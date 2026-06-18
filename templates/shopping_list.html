@@ -435,10 +435,9 @@
                 html += `<tr class="supplier-row"><td colspan="8"><strong>&#128666; ${sup}</strong> <span style="font-weight:400;color:var(--text-light);font-size:0.85em;">${items.length} art.</span></td></tr>`;
                 items.forEach(item => {
                     idx++;
-                    const cartItem = cart.find(c => c.name === item.name);
-                    const diff = Math.max(0, (item.min_stock || 0) - (item.current_stock || 0));
-                    const defaultQty = diff > 0 ? diff : item.qty;
-                    const custQty = cartItem ? cartItem.qty : (item.reason === 'min_stock' ? defaultQty : item.qty);
+                const cartItem = cart.find(c => c.name === item.name);
+                const diff = Math.max(0, (item.min_stock || 0) - (item.current_stock || 0));
+                const custQty = cartItem ? cartItem.qty : item.qty;
                     const itemCost = custQty * item.cost;
                     supTotal += itemCost;
                     const isMinStock = item.reason === 'min_stock';

@@ -490,6 +490,11 @@ def check_recipe(recipe_id):
     })
 
 
+def _convert_val(val, measure):
+    if measure == 'lb':
+        return round(val / 453.592, 2)
+    return round(val / 1000, 3)
+
 @app.route('/api/shopping-list', methods=['GET'])
 @api_auth_required
 def global_shopping_list():
@@ -565,9 +570,9 @@ def global_shopping_list():
             'presentation': ing.get('presentation', ''),
             'classification': ing.get('classification', ''),
             'reason': 'menu_needed' if qty_needed > stock else 'min_stock',
-            'current_stock': round(stock, 2),
-            'min_stock': round(min_stock, 2),
-            'stock_measure': ing.get('measure', 'g'),
+            'current_stock': _convert_val(stock, measure),
+            'min_stock': _convert_val(min_stock, measure),
+            'stock_measure': {'g': 'kg', 'ml': 'l'}.get(measure, measure),
         })
 
     # Add ingredients below min_stock that aren't needed by any dish
@@ -617,9 +622,9 @@ def global_shopping_list():
             'presentation': ing.get('presentation', ''),
             'classification': ing.get('classification', ''),
             'reason': 'min_stock',
-            'current_stock': round(stock, 2),
-            'min_stock': round(min_stock, 2),
-            'stock_measure': ing.get('measure', 'g'),
+            'current_stock': _convert_val(stock, measure),
+            'min_stock': _convert_val(min_stock, measure),
+            'stock_measure': {'g': 'kg', 'ml': 'l'}.get(measure, measure),
         })
 
     shoppingList.sort(key=lambda x: x['name'])
