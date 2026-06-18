@@ -450,12 +450,16 @@
         async function loadProjectionsData() {
             try {
                 const res = await fetch('/api/projections');
+                if (!res.ok) {
+                    const txt = await res.text().catch(() => '');
+                    throw new Error('HTTP ' + res.status + ': ' + txt.slice(0, 200));
+                }
                 const data = await res.json();
                 tableExists = data.table_exists || false;
                 projections = data.projections || [];
                 renderProjectionsDisplay();
             } catch(e) {
-                document.getElementById('projectionsDisplay').innerHTML = '<p class="message error" style="font-size:0.85em;">Error al cargar proyecciones</p>';
+                document.getElementById('projectionsDisplay').innerHTML = '<p class="message error" style="font-size:0.85em;">' + e.message + '</p>';
             }
         }
 
