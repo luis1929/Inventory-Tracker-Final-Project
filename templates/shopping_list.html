@@ -25,6 +25,14 @@
         .sales-config { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
         .sales-config label { font-size:0.85em; color:var(--text-light); }
         .sales-config select, .sales-config input { padding:6px 10px; border:1px solid var(--cream-dark); border-radius:4px; font-size:0.85em; }
+        .proj-display-table { width:100%; border-collapse:collapse; margin-bottom:12px; }
+        .proj-display-table th { background:#1a1a2e; color:white; padding:8px 10px; font-size:0.8em; text-transform:uppercase; letter-spacing:0.5px; text-align:left; }
+        .proj-display-table td { padding:6px 10px; border-bottom:1px solid #eee; font-size:0.85em; }
+        .proj-display-table tr:hover td { background:#f8f4ef; }
+        .proj-summary-bar { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:14px; }
+        .proj-summary-item { background:#f8f4ef; padding:10px 16px; border-radius:6px; text-align:center; flex:1; min-width:100px; }
+        .proj-summary-item .label { font-size:0.75em; color:var(--text-light); }
+        .proj-summary-item .value { font-size:1.1em; font-weight:700; color:var(--dark); font-family:'Playfair Display',serif; }
     </style>
 </head>
 <body class="page-compras">
@@ -103,6 +111,7 @@
                     <button onclick="window.print()" class="btn btn-secondary" style="font-size:0.85em;padding:6px 14px;">&#128424; Imprimir</button>
                 </div>
             </div>
+            <div id="projectionsDisplay" style="display:none;margin-bottom:20px;"></div>
             <div id="shoppingListContent">
                 <p class="loading">Calculando lista de compras...</p>
             </div>
@@ -134,6 +143,8 @@
         let shoppingTotalCost = 0;
         let currentMode = 'stock';
         let cart = JSON.parse(localStorage.getItem('shopCart') || '[]');
+        let projections = [];
+        let tableExists = false;
 
         function getParams() {
             const p = new URLSearchParams(window.location.search);
@@ -145,10 +156,12 @@
             document.querySelectorAll('.mode-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
             const cfg = document.getElementById('salesConfig');
             cfg.style.display = mode === 'sales' ? 'block' : 'none';
+            const projDisp = document.getElementById('projectionsDisplay');
+            projDisp.style.display = mode === 'sales' ? 'block' : 'none';
             const desc = document.getElementById('heroDesc');
             const title = document.getElementById('modeTitle');
             if (mode === 'sales') {
-                desc.textContent = 'Basado en ventas históricas, proyecta los ingredientes que necesitarás comprar.';
+                desc.textContent = 'Basado en las proyecciones de ventas, calcula los ingredientes que necesitas comprar.';
                 title.textContent = 'Compra por Proyección de Ventas';
             } else {
                 desc.textContent = 'Selecciona los artículos que necesitas y agrúpalos por proveedor para hacer tus pedidos.';
@@ -434,12 +447,25 @@
             if (master) master.checked = false;
         }
 
+        async function loadProjectionsData() {
+            try {
+                const res = await fetch('/api/projections');
+                const data = await res.json();
+                tableExists = data.table_exists || false;
+                projections = data.projections || [];
+                renderProjectionsDisplay();
+            } catch(e) {
+                document.getElementById('projectionsDisplay').innerHTML = '<p class="message error" style="font-size:0.85em;">Error al cargar proyecciones</p>';
+            }
+        }
+
         async function loadShoppingList() {
             try {
                 document.getElementById('shoppingListContent').innerHTML = '<p class="loading">Calculando lista de compras...</p>';
                 let url = '/api/shopping-list?mode=' + currentMode;
                 if (currentMode === 'sales') {
                     url += '&days=' + (document.getElementById('salesDays').value || 30);
+                    await loadProjectionsData();
                 }
                 const res = await fetch(url);
                 const data = await res.json();
@@ -450,6 +476,67 @@
             } catch(e) {
                 document.getElementById('shoppingListContent').innerHTML = '<p class="message error">Error al cargar la lista de compras</p>';
             }
+        }
+
+        function renderProjectionsDisplay() {
+            const div = document.getElementById('projectionsDisplay');
+            if (currentMode !== 'sales') { div.style.display = 'none'; return; }
+            div.style.display = 'block';
+
+            if (!tableExists) {
+                div.innerHTML = `<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:16px;font-size:0.85em;">
+                    <strong>&#9888; Tabla de proyecciones no existe.</strong>
+                    Ve a <a href="/projections" style="color:var(--primary);">Proyecciones</a> para crearla.
+                </div>`;
+                return;
+            }
+
+            if (!projections.length) {
+                div.innerHTML = `<div style="background:#f8f4ef;border:1px solid var(--cream-dark);border-radius:6px;padding:16px;font-size:0.85em;">
+                    &#128202; No hay proyecciones definidas. 
+                    <a href="/projections" style="color:var(--primary);font-weight:600;">Crear proyecciones &rarr;</a>
+                </div>`;
+                return;
+            }
+
+            const active = projections.filter(p => p.is_active);
+            let totalUnits = 0, totalCost = 0, totalQty = 0;
+            active.forEach(p => {
+                totalUnits += p.projected_units || 0;
+                totalCost += p.total_dish_cost || 0;
+                totalQty += p.estimated_qty || 0;
+            });
+
+            let html = `
+                <div class="proj-summary-bar">
+                    <div class="proj-summary-item"><div class="label">Platos Activ.</div><div class="value">${active.length}</div></div>
+                    <div class="proj-summary-item"><div class="label">Und. Proyect.</div><div class="value">${totalUnits}</div></div>
+                    <div class="proj-summary-item"><div class="label">Costo Total Est.</div><div class="value">$${totalCost.toFixed(0)}</div></div>
+                    <div class="proj-summary-item"><div class="label">Ingredientes</div><div class="value">${(totalQty / 1000).toFixed(1)} kg</div></div>
+                    <div class="proj-summary-item"><div class="label">Período</div><div class="value" style="font-size:0.85em;">${active[0]?.start_date || '—'} <span style="color:var(--text-light);">→</span> ${active[0]?.end_date || '—'}</div></div>
+                </div>
+                <div style="max-height:300px;overflow-y:auto;border:1px solid var(--cream-dark);border-radius:6px;">
+                <table class="proj-display-table">
+                    <thead><tr>
+                        <th>Plato</th><th>Und.</th><th>Costo Und.</th><th>Costo Total</th><th>Ingredientes</th>
+                    </tr></thead><tbody>`;
+
+            active.forEach(p => {
+                html += `<tr>
+                    <td><strong>${p.dish_name}</strong></td>
+                    <td>${p.projected_units || 0}</td>
+                    <td>$${(p.unit_cost || 0).toFixed(2)}</td>
+                    <td>$${(p.total_dish_cost || 0).toFixed(0)}</td>
+                    <td>${((p.estimated_qty || 0) / 1000).toFixed(1)} kg</td>
+                </tr>`;
+            });
+
+            html += `</tbody></table></div>
+                <div style="margin-top:8px;text-align:right;font-size:0.8em;color:var(--text-light);">
+                    <a href="/projections" style="color:var(--primary);">Editar proyecciones &rarr;</a>
+                </div>`;
+
+            div.innerHTML = html;
         }
 
         function calcCompraTotal() {
