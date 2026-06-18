@@ -8,6 +8,8 @@
     <style>
         .low-stock-row { background: #fff3cd; }
         .low-stock-row:hover { background: #ffe69c; }
+        .supplier-row td { background: #f0e8dc; font-weight: 700; color: #1a1a2e; padding: 8px 12px !important; border-bottom: 2px solid #d4a353; }
+        .sup-total-row td { font-size: 0.9em; }
     </style>
 </head>
 <body class="page-compras">
@@ -187,12 +189,30 @@
             const item = allItems.find(i => i.name === name);
             const td = input.closest('tr').querySelector('td:last-child');
             td.textContent = `$${(qty * item.cost).toFixed(0)}`;
+            updateSubtotals();
             const cartItem = cart.find(c => c.name === name);
             if (cartItem) {
                 cartItem.qty = qty;
                 saveCart();
                 renderCart();
             }
+            updateCompraTotal();
+        }
+
+        function updateSubtotals() {
+            const groups = {};
+            allItems.forEach(item => {
+                const inp = document.getElementById(`qty-${item.name}`);
+                const qty = inp ? parseFloat(inp.value) || 0 : item.qty;
+                const sup = item.supplier || 'Sin proveedor';
+                if (!groups[sup]) groups[sup] = 0;
+                groups[sup] += qty * item.cost;
+            });
+            document.querySelectorAll('.sup-total-row').forEach(row => {
+                const sup = row.dataset.supplier;
+                const span = row.querySelector('span');
+                if (span) span.textContent = `$${(groups[sup] || 0).toFixed(0)}`;
+            });
         }
 
         function updateCartBadge() {
@@ -350,6 +370,25 @@
             }
         }
 
+        function calcCompraTotal() {
+            let total = 0;
+            const filter = document.getElementById('filterShopping').value;
+            let items = allItems;
+            if (filter === 'min_stock') items = allItems.filter(i => i.reason === 'min_stock');
+            else if (filter === 'menu') items = allItems.filter(i => i.reason === 'menu_needed');
+            items.forEach(item => {
+                const input = document.getElementById(`qty-${item.name}`);
+                const qty = input ? parseFloat(input.value) || 0 : item.qty;
+                total += qty * item.cost;
+            });
+            return total;
+        }
+
+        function updateCompraTotal() {
+            const el = document.getElementById('compraTotal');
+            if (el) el.textContent = `$${calcCompraTotal().toFixed(0)}`;
+        }
+
         function renderShoppingList() {
             const filter = document.getElementById('filterShopping').value;
             const div = document.getElementById('shoppingListContent');
@@ -372,42 +411,61 @@
                 return;
             }
 
+            const groups = {};
+            filtered.forEach(item => {
+                const sup = item.supplier || 'Sin proveedor';
+                if (!groups[sup]) groups[sup] = [];
+                groups[sup].push(item);
+            });
+
             let html = `
                 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-bottom:16px;gap:12px;">
-                    <span style="font-size:1.1em;">Total: <strong style="color:var(--primary);font-family:'Playfair Display',serif;font-size:1.2em;">$${(shoppingTotalCost || 0).toFixed(2)}</strong></span>
-                    <span style="color:var(--text-light);font-size:0.9em;">${filtered.length} artículos</span>
+                    <span style="color:var(--text-light);font-size:0.9em;">${filtered.length} artículos · ${Object.keys(groups).length} proveedores</span>
                 </div>
                 <div class="table-wrapper"><table>
                     <thead><tr>
                         <th style="width:32px;"><input type="checkbox" id="selectAll" onchange="toggleAll(this)"></th>
-                        <th>#</th><th>Producto</th><th>Proveedor</th><th>Stock Actual</th><th>Stock Mín.</th><th>Diferencia</th><th>Cant. a Comprar</th><th>Costo Est.</th>
+                        <th>#</th><th>Producto</th><th>Stock Actual</th><th>Stock Mín.</th><th>Diferencia</th><th>Cant. a Comprar</th><th>Costo Est.</th>
                     </tr></thead><tbody>`;
 
-            filtered.forEach((item, i) => {
-                const cartItem = cart.find(c => c.name === item.name);
-                const diff = Math.max(0, (item.min_stock || 0) - (item.current_stock || 0));
-                const defaultQty = diff > 0 ? diff : item.qty;
-                const custQty = cartItem ? cartItem.qty : (item.reason === 'min_stock' ? defaultQty : item.qty);
-                const itemCost = custQty * item.cost;
-                const isMinStock = item.reason === 'min_stock';
-                const preMeasure = item.stock_measure || item.measure || 'g';
-                html += `<tr${isMinStock ? ' class="low-stock-row"' : ''}>
-                    <td><input type="checkbox" class="cart-checkbox" data-name="${item.name}" ${cartItem ? 'checked' : ''} onchange="toggleCartItem('${item.name}', this)"></td>
-                    <td>${i + 1}${isMinStock ? ' &#9888;' : ''}</td>
-                    <td><strong>${item.name}</strong>${item.brand ? '<br><span style="font-size:0.8em;color:var(--text-light);">' + item.brand + '</span>' : ''}</td>
-                    <td style="font-size:0.85em;">${item.supplier || '-'}</td>
-                    <td style="font-size:0.9em;">${item.current_stock || 0} ${preMeasure}</td>
-                    <td style="font-size:0.9em;">${item.min_stock || 0} ${preMeasure}</td>
-                    <td style="font-size:0.9em;font-weight:600;color:${diff > 0 ? '#e74c3c' : '#27ae60'};">${diff > 0 ? '−' : '+'}${Math.abs(diff).toFixed(2)} ${preMeasure}</td>
-                    <td><input type="number" id="qty-${item.name}" value="${custQty}" min="0.01" step="any" style="width:70px;padding:4px 6px;border:1px solid var(--cream-dark);border-radius:4px;font-size:0.9em;" oninput="updateRowCost('${item.name}')"> <span style="font-size:0.85em;color:var(--text-light);">${item.measure}</span></td>
-                    <td>$${itemCost.toFixed(0)}</td>
-                </tr>`;
+            let idx = 0;
+            Object.keys(groups).sort().forEach(sup => {
+                const items = groups[sup];
+                let supTotal = 0;
+                html += `<tr class="supplier-row"><td colspan="8"><strong>&#128666; ${sup}</strong> <span style="font-weight:400;color:var(--text-light);font-size:0.85em;">${items.length} art.</span></td></tr>`;
+                items.forEach(item => {
+                    idx++;
+                    const cartItem = cart.find(c => c.name === item.name);
+                    const diff = Math.max(0, (item.min_stock || 0) - (item.current_stock || 0));
+                    const defaultQty = diff > 0 ? diff : item.qty;
+                    const custQty = cartItem ? cartItem.qty : (item.reason === 'min_stock' ? defaultQty : item.qty);
+                    const itemCost = custQty * item.cost;
+                    supTotal += itemCost;
+                    const isMinStock = item.reason === 'min_stock';
+                    const preMeasure = item.stock_measure || item.measure || 'g';
+                    html += `<tr${isMinStock ? ' class="low-stock-row"' : ''}>
+                        <td><input type="checkbox" class="cart-checkbox" data-name="${item.name}" ${cartItem ? 'checked' : ''} onchange="toggleCartItem('${item.name}', this)"></td>
+                        <td>${idx}${isMinStock ? ' &#9888;' : ''}</td>
+                        <td><strong>${item.name}</strong>${item.brand ? '<br><span style="font-size:0.8em;color:var(--text-light);">' + item.brand + '</span>' : ''}</td>
+                        <td style="font-size:0.9em;">${item.current_stock || 0} ${preMeasure}</td>
+                        <td style="font-size:0.9em;">${item.min_stock || 0} ${preMeasure}</td>
+                        <td style="font-size:0.9em;font-weight:600;color:${diff > 0 ? '#e74c3c' : '#27ae60'};">${diff > 0 ? '−' : '+'}${Math.abs(diff).toFixed(2)} ${preMeasure}</td>
+                        <td><input type="number" id="qty-${item.name}" value="${custQty}" min="0.01" step="any" style="width:70px;padding:4px 6px;border:1px solid var(--cream-dark);border-radius:4px;font-size:0.9em;" oninput="updateRowCost('${item.name}')"> <span style="font-size:0.85em;color:var(--text-light);">${item.measure}</span></td>
+                        <td>$${itemCost.toFixed(0)}</td>
+                    </tr>`;
+                });
+                html += `<tr class="sup-total-row" data-supplier="${sup}"><td colspan="8" style="text-align:right;font-weight:600;color:var(--dark);padding:4px 12px 12px;border-bottom:2px solid var(--cream-dark);">Subtotal ${sup}: <span style="color:var(--primary);">$${supTotal.toFixed(0)}</span></td></tr>`;
             });
 
             html += `</tbody></table></div>
-                <p style="margin-top:12px;color:var(--text-light);font-size:0.85em;">
-                    &#128161; Selecciona los artículos con la casilla y ábrelos al carrito para agruparlos por proveedor.
-                </p>`;
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-top:12px;gap:8px;">
+                    <p style="color:var(--text-light);font-size:0.85em;margin:0;">
+                        &#128161; Selecciona los artículos con la casilla y ábrelos al carrito para agruparlos por proveedor.
+                    </p>
+                    <div style="font-size:1.3em;font-weight:700;font-family:'Playfair Display',serif;color:var(--primary);">
+                        Total Compra: <span id="compraTotal">$${calcCompraTotal().toFixed(0)}</span>
+                    </div>
+                </div>`;
 
             div.innerHTML = html;
             updateCartBadge();
