@@ -565,6 +565,9 @@ def global_shopping_list():
             'presentation': ing.get('presentation', ''),
             'classification': ing.get('classification', ''),
             'reason': 'menu_needed' if qty_needed > stock else 'min_stock',
+            'current_stock': round(stock, 2),
+            'min_stock': round(min_stock, 2),
+            'stock_measure': ing.get('measure', 'g'),
         })
 
     # Add ingredients below min_stock that aren't needed by any dish
@@ -614,6 +617,9 @@ def global_shopping_list():
             'presentation': ing.get('presentation', ''),
             'classification': ing.get('classification', ''),
             'reason': 'min_stock',
+            'current_stock': round(stock, 2),
+            'min_stock': round(min_stock, 2),
+            'stock_measure': ing.get('measure', 'g'),
         })
 
     shoppingList.sort(key=lambda x: x['name'])

@@ -380,20 +380,25 @@
                 <div class="table-wrapper"><table>
                     <thead><tr>
                         <th style="width:32px;"><input type="checkbox" id="selectAll" onchange="toggleAll(this)"></th>
-                        <th>#</th><th>Producto</th><th>Proveedor</th><th>Presentación</th><th>Cantidad</th><th>Costo Est.</th>
+                        <th>#</th><th>Producto</th><th>Proveedor</th><th>Stock Actual</th><th>Stock Mín.</th><th>Diferencia</th><th>Cant. a Comprar</th><th>Costo Est.</th>
                     </tr></thead><tbody>`;
 
             filtered.forEach((item, i) => {
                 const cartItem = cart.find(c => c.name === item.name);
-                const custQty = cartItem ? cartItem.qty : item.qty;
+                const diff = Math.max(0, (item.min_stock || 0) - (item.current_stock || 0));
+                const defaultQty = diff > 0 ? diff : item.qty;
+                const custQty = cartItem ? cartItem.qty : (item.reason === 'min_stock' ? defaultQty : item.qty);
                 const itemCost = custQty * item.cost;
                 const isMinStock = item.reason === 'min_stock';
+                const preMeasure = item.stock_measure || item.measure || 'g';
                 html += `<tr${isMinStock ? ' class="low-stock-row"' : ''}>
                     <td><input type="checkbox" class="cart-checkbox" data-name="${item.name}" ${cartItem ? 'checked' : ''} onchange="toggleCartItem('${item.name}', this)"></td>
                     <td>${i + 1}${isMinStock ? ' &#9888;' : ''}</td>
-                    <td><strong>${item.name}</strong></td>
+                    <td><strong>${item.name}</strong>${item.brand ? '<br><span style="font-size:0.8em;color:var(--text-light);">' + item.brand + '</span>' : ''}</td>
                     <td style="font-size:0.85em;">${item.supplier || '-'}</td>
-                    <td style="font-size:0.85em;">${item.presentation || '-'}</td>
+                    <td style="font-size:0.9em;">${item.current_stock || 0} ${preMeasure}</td>
+                    <td style="font-size:0.9em;">${item.min_stock || 0} ${preMeasure}</td>
+                    <td style="font-size:0.9em;font-weight:600;color:${diff > 0 ? '#e74c3c' : '#27ae60'};">${diff > 0 ? '−' : '+'}${Math.abs(diff).toFixed(2)} ${preMeasure}</td>
                     <td><input type="number" id="qty-${item.name}" value="${custQty}" min="0.01" step="any" style="width:70px;padding:4px 6px;border:1px solid var(--cream-dark);border-radius:4px;font-size:0.9em;" oninput="updateRowCost('${item.name}')"> <span style="font-size:0.85em;color:var(--text-light);">${item.measure}</span></td>
                     <td>$${itemCost.toFixed(0)}</td>
                 </tr>`;
