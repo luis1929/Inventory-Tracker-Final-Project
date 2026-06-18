@@ -130,8 +130,8 @@
                 <div class="chart-container"><canvas id="costChart"></canvas></div>
             </div>
             <div class="chart-card">
-                <h3>&#128202; Rentabilidad <span style="font-weight:400;font-size:0.8em;color:var(--text-light);">(ingresa precio de venta)</span></h3>
-                <p style="color:var(--text-light);font-size:0.85em;margin:-4px 0 4px;">Margen de ganancia por receta</p>
+                <h3>&#128202; Rentabilidad</h3>
+                <p style="color:var(--text-light);font-size:0.85em;margin:-4px 0 4px;">Plato, costo, precio venta y unidades vendidas en el mes</p>
                 <div id="profitTable"><p class="loading">Cargando...</p></div>
             </div>
         </div>
@@ -272,48 +272,22 @@
                 return;
             }
 
-            let prices = {};
-            try {
-                prices = JSON.parse(localStorage.getItem('recipePrices') || '{}');
-            } catch(e) {}
-
-            let html = '';
+            let html = '<div class="table-wrapper"><table><thead><tr>' +
+                '<th>Plato</th><th>Precio Costo</th><th>Precio Venta</th><th>Unid. Vendidas (mes)</th>' +
+                '</tr></thead><tbody>';
             recipes.forEach(r => {
-                const price = prices[r.recipe_id] || '';
-                const margin = price ? ((parseFloat(price) - r.cost) / parseFloat(price) * 100) : null;
-                let marginClass = 'margin-zero';
-                let marginText = '—';
-                if (margin !== null) {
-                    if (margin > 0) { marginClass = 'margin-positive'; marginText = margin.toFixed(1) + '%'; }
-                    else if (margin < 0) { marginClass = 'margin-negative'; marginText = margin.toFixed(1) + '%'; }
-                    else { marginText = '0%'; }
-                }
-
-                html += `<div class="profit-row">
-                    <span style="flex:1;font-weight:600;font-size:0.9em;">${r.recipe_name}</span>
-                    <span style="color:var(--text-light);font-size:0.85em;width:60px;">C: $${r.cost}</span>
-                    <span style="font-size:0.85em;width:50px;">$<input type="text" class="price-input" value="${price}" data-id="${r.recipe_id}" placeholder="precio" onchange="savePrice(this)"></span>
-                    <span class="profit-margin ${marginClass}" style="width:60px;text-align:center;" id="margin-${r.recipe_id}">${marginText}</span>
-                </div>`;
+                const cost = r.cost || 0;
+                const sale = r.sale_price || 0;
+                const units = r.units_sold || 0;
+                html += '<tr>' +
+                    '<td><strong>' + r.recipe_name + '</strong></td>' +
+                    '<td>$' + cost.toFixed(0) + '</td>' +
+                    '<td>' + (sale > 0 ? '$' + sale.toFixed(0) : '—') + '</td>' +
+                    '<td>' + units + '</td>' +
+                    '</tr>';
             });
+            html += '</tbody></table></div>';
             div.innerHTML = html;
-        }
-
-        function savePrice(input) {
-            const id = input.dataset.id;
-            const val = input.value.trim();
-            let prices = {};
-            try {
-                prices = JSON.parse(localStorage.getItem('recipePrices') || '{}');
-            } catch(e) {}
-            if (val && !isNaN(val) && parseFloat(val) > 0) {
-                prices[id] = parseFloat(val);
-            } else {
-                delete prices[id];
-                input.value = '';
-            }
-            localStorage.setItem('recipePrices', JSON.stringify(prices));
-            renderProfitTable(analyticsData.recipe_costs);
         }
 
         function renderCostDetail(recipes) {

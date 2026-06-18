@@ -681,7 +681,28 @@ def analytics():
                 'ingredient_count': len(items),
             })
 
-    recipeCosts.sort(key=lambda x: x['cost'], reverse=True)
+        recipeCosts.sort(key=lambda x: x['cost'], reverse=True)
+
+        # Add sale_price from menu_board
+        sale_prices = {d['id']: float(d.get('sale_price', 0) or 0) for d in dish_list}
+        for rc in recipeCosts:
+            rc['sale_price'] = sale_prices.get(rc['recipe_id'], 0)
+
+    # Compute units sold in current month per dish
+    month_start = datetime.utcnow().strftime('%Y-%m-01')
+    rs = api_req('GET', T_SALES, params={'created_at': 'gte.' + month_start, 'select': 'id'})
+    sale_ids = []
+    if rs.status_code == 200:
+        sale_ids = [s['id'] for s in rs.json()]
+    units_by_dish = {}
+    if sale_ids:
+        rsi = api_req('GET', T_SALE_ITEMS, params={'sale_id': 'in.(' + ','.join(str(i) for i in sale_ids) + ')', 'select': 'dish_id,quantity'})
+        if rsi.status_code == 200:
+            for si in rsi.json():
+                did = si['dish_id']
+                units_by_dish[did] = units_by_dish.get(did, 0) + int(si.get('quantity', 0))
+    for rc in recipeCosts:
+        rc['units_sold'] = units_by_dish.get(rc['recipe_id'], 0)
 
     return jsonify({
         'ingredient_count': len(ingredients),
