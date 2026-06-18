@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Proyección de Ventas - KitchenMaster</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <style>
+        .setup-box { background:#fff3cd; border:2px solid #ffc107; border-radius:8px; padding:24px; margin-bottom:20px; }
+        .setup-box h3 { margin:0 0 8px; color:#856404; }
+        .setup-box pre { background:#1a1a2e; color:#e8e8e8; padding:16px; border-radius:6px; overflow-x:auto; font-size:0.85em; margin:12px 0; }
+        .setup-box .btn { background:#ffc107; color:#1a1a2e; }
+        .setup-box .btn:hover { background:#e0a800; }
+        .proj-row:hover { background:#f8f4ef; }
+        .proj-row td { vertical-align:middle; }
+        .proj-row input[type="number"] { width:70px; padding:4px 6px; border:1px solid var(--cream-dark); border-radius:4px; font-size:0.9em; text-align:center; }
+        .proj-summary { display:flex; gap:20px; flex-wrap:wrap; margin-bottom:16px; }
+        .proj-summary-item { background:#f8f4ef; padding:12px 20px; border-radius:8px; text-align:center; }
+        .proj-summary-item .label { font-size:0.8em; color:var(--text-light); }
+        .proj-summary-item .value { font-size:1.3em; font-weight:700; color:var(--dark); font-family:'Playfair Display',serif; }
+        .nav-dropdown { position: relative; }
+        .nav-dropdown > a { cursor: pointer; }
+        .nav-dropdown-menu { display: none; position: absolute; top: 100%; left: 0; background: #1a1a2e; min-width: 180px; border-radius: 6px; padding: 4px 0; z-index: 100; box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
+        .nav-dropdown-menu li { list-style: none; }
+        .nav-dropdown-menu a { display: block; padding: 8px 16px; color: #ddd; font-size: 0.85em; text-decoration: none; white-space: nowrap; }
+        .nav-dropdown-menu a:hover { background: #2a2a4e; color: #fff; }
+        .nav-dropdown:hover .nav-dropdown-menu { display: block; }
+    </style>
+</head>
+<body class="page-compras">
+    <nav class="navbar">
+        <div class="nav-inner">
+            <a href="/" class="nav-brand">&#127860; <span>K</span>itchen<span>M</span>aster</a>
+            <ul class="nav-links">
+                <li><a href="/">&#127968; <span>Inicio</span></a></li>
+                <li class="nav-dropdown">
+                    <a href="#">&#128722; <span>Compras</span> &#9660;</a>
+                    <ul class="nav-dropdown-menu">
+                        <li><a href="/shopping-list?mode=stock">Comp x Stock</a></li>
+                        <li><a href="/shopping-list?mode=sales">Comp x Proy Venta</a></li>
+                    </ul>
+                </li>
+                <li><a href="/ingredients">&#127838; <span>Ingredientes</span></a></li>
+                <li><a href="/pos">&#128176; <span>POS</span></a></li>
+                <li><a href="/menu-planner">&#128203; <span>Menu</span></a></li>
+                <li><a href="/analytics">&#128200; <span>Analítica</span></a></li>
+                <li><a href="/projections" class="active">&#128202; <span>Proyecciones</span></a></li>
+                {% if is_admin %}<li><a href="/admin">&#9881; <span>Admin</span></a></li>{% endif %}
+            </ul>
+            <div class="nav-user">
+                <span class="user-email">{{ user.email }}</span>
+                <button class="logout-btn" onclick="logout()">Salir</button>
+            </div>
+        </div>
+    </nav>
+
+    <section class="hero" style="padding:40px 0;">
+        <div class="hero-content">
+            <div class="hero-badge">&#128202; Pronóstico</div>
+            <h1>Proyección de <span>Ventas</span></h1>
+            <p>Define las ventas proyectadas por plato para calcular la compra sugerida.</p>
+        </div>
+    </section>
+
+    <div class="container">
+        <a href="/shopping-list?mode=sales" class="back-link">&larr; Ir a Compra Proyectada</a>
+
+        <div id="setupRequired" style="display:none;">
+            <div class="setup-box">
+                <h3>&#9888; Configuración requerida</h3>
+                <p>La tabla de proyecciones no existe en Supabase. Para crearla, ejecuta este SQL en el Editor SQL del Dashboard de Supabase:</p>
+                <pre>CREATE TABLE IF NOT EXISTS sales_projections (
+    id BIGSERIAL PRIMARY KEY,
+    dish_id BIGINT REFERENCES menu_board(id) ON DELETE CASCADE,
+    dish_name TEXT NOT NULL,
+    projected_units INTEGER NOT NULL DEFAULT 30,
+    unit_cost DECIMAL(12,2) NOT NULL DEFAULT 0,
+    total_dish_cost DECIMAL(12,2) NOT NULL DEFAULT 0,
+    start_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    end_date DATE NOT NULL DEFAULT (CURRENT_DATE + INTERVAL '30 days'),
+    estimated_qty DECIMAL(12,2) NOT NULL DEFAULT 0,
+    estimated_cost DECIMAL(12,2) NOT NULL DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_sales_projections_dish_id ON sales_projections(dish_id);
+CREATE INDEX IF NOT EXISTS idx_sales_projections_active ON sales_projections(is_active);</pre>
+                <p style="margin-bottom:0;">Después de crear la tabla, <a href="#" onclick="location.reload()">recarga esta página</a>.</p>
+            </div>
+        </div>
+
+        <div id="projectionsContent" style="display:none;">
+            <div class="content-card" style="margin-bottom:20px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+                    <h2 style="margin:0;border:none;padding:0;font-size:1.2em;">&#128202; Proyecciones por Plato</h2>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <button class="btn btn-secondary" style="font-size:0.85em;padding:6px 14px;" onclick="loadProjections()">&#128260; Recargar</button>
+                        <button class="btn" style="font-size:0.85em;padding:6px 14px;" onclick="saveAll()">&#128190; Guardar Cambios</button>
+                    </div>
+                </div>
+
+                <div class="proj-summary" id="projSummary">
+                    <div class="proj-summary-item">
+                        <div class="label">Platos</div>
+                        <div class="value" id="totalDishes">0</div>
+                    </div>
+                    <div class="proj-summary-item">
+                        <div class="label">Unidades Proyectadas</div>
+                        <div class="value" id="totalUnits">0</div>
+                    </div>
+                    <div class="proj-summary-item">
+                        <div class="label">Costo Total Est.</div>
+                        <div class="value" id="totalCost">$0</div>
+                    </div>
+                    <div class="proj-summary-item">
+                        <div class="label">Ingredientes Est. (kg)</div>
+                        <div class="value" id="totalQty">0</div>
+                    </div>
+                </div>
+
+                <div class="table-wrapper"><table>
+                    <thead><tr>
+                        <th>Plato</th>
+                        <th>Categoría</th>
+                        <th>Und. Proyectadas</th>
+                        <th>Costo Unit.</th>
+                        <th>Costo Total</th>
+                        <th>Ingredientes (g)</th>
+                        <th>Activo</th>
+                    </tr></thead>
+                    <tbody id="projTableBody">
+                        <tr><td colspan="7" class="loading">Cargando proyecciones...</td></tr>
+                    </tbody>
+                </table></div>
+
+                <div style="margin-top:16px;padding:12px;background:#f8f4ef;border-radius:6px;font-size:0.85em;color:var(--text-light);">
+                    &#128161; Ajusta las unidades proyectadas por plato. El costo unitario se calcula automáticamente según los ingredientes de la receta.
+                    La <strong>Compra Proyectada</strong> en la lista de compras usará estos valores para calcular los ingredientes necesarios.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        Restaurant Inventory Tracker &mdash; Hecho con <span>&#10084;</span> para cocineros
+    </div>
+
+    <script>
+        let projections = [];
+        let allDishes = [];
+
+        async function loadProjections() {
+            try {
+                const res = await fetch('/api/projections');
+                const data = await res.json();
+                const setupDiv = document.getElementById('setupRequired');
+                const contentDiv = document.getElementById('projectionsContent');
+
+                if (!data.table_exists) {
+                    setupDiv.style.display = 'block';
+                    contentDiv.style.display = 'none';
+                    return;
+                }
+                setupDiv.style.display = 'none';
+                contentDiv.style.display = 'block';
+
+                projections = data.projections || [];
+                renderProjections();
+            } catch(e) {
+                document.getElementById('projTableBody').innerHTML = '<tr><td colspan="7" class="message error">Error al cargar proyecciones</td></tr>';
+            }
+        }
+
+        function renderProjections() {
+            const tbody = document.getElementById('projTableBody');
+            let html = '';
+            let totalUnits = 0;
+            let totalCost = 0;
+            let totalQty = 0;
+
+            if (!projections.length) {
+                tbody.innerHTML = '<tr><td colspan="7"><div style="text-align:center;padding:40px;"><div style="font-size:3em;margin-bottom:8px;">&#128202;</div><p>No hay proyecciones.</p><button class="btn" onclick="initProjections()">&#128200; Inicializar Proyecciones</button></div></td></tr>';
+                return;
+            }
+
+            projections.forEach((p, i) => {
+                totalUnits += p.projected_units || 0;
+                totalCost += p.total_dish_cost || 0;
+                totalQty += p.estimated_qty || 0;
+                html += `<tr class="proj-row">
+                    <td><strong>${p.dish_name}</strong></td>
+                    <td style="font-size:0.85em;color:var(--text-light);">${p.category || '-'}</td>
+                    <td><input type="number" class="proj-units" data-id="${p.id}" data-dish="${p.dish_name}" value="${p.projected_units || 30}" min="0" step="1" onchange="onUnitChange(${p.id})"></td>
+                    <td>$${(p.unit_cost || 0).toFixed(2)}</td>
+                    <td><span class="proj-total-cost" data-id="${p.id}">$${(p.total_dish_cost || 0).toFixed(0)}</span></td>
+                    <td>${((p.estimated_qty || 0) / 1000).toFixed(1)} kg</td>
+                    <td><input type="checkbox" ${p.is_active ? 'checked' : ''} onchange="toggleActive(${p.id}, this)"></td>
+                </tr>`;
+            });
+
+            tbody.innerHTML = html;
+            document.getElementById('totalDishes').textContent = projections.length;
+            document.getElementById('totalUnits').textContent = totalUnits;
+            document.getElementById('totalCost').textContent = '$' + totalCost.toFixed(0);
+            document.getElementById('totalQty').textContent = (totalQty / 1000).toFixed(1);
+        }
+
+        function onUnitChange(id) {
+            const input = document.querySelector(`.proj-units[data-id="${id}"]`);
+            const units = parseInt(input.value) || 0;
+            const proj = projections.find(p => p.id === id);
+            if (!proj) return;
+            const newTotal = (proj.unit_cost || 0) * units;
+            const span = document.querySelector(`.proj-total-cost[data-id="${id}"]`);
+            if (span) span.textContent = '$' + newTotal.toFixed(0);
+            updateSummary();
+        }
+
+        function updateSummary() {
+            let totalUnits = 0;
+            let totalCost = 0;
+            let totalQty = 0;
+            document.querySelectorAll('.proj-units').forEach(inp => {
+                const id = parseInt(inp.dataset.id);
+                const units = parseInt(inp.value) || 0;
+                const proj = projections.find(p => p.id === id);
+                if (!proj) return;
+                totalUnits += units;
+                totalCost += (proj.unit_cost || 0) * units;
+                totalQty += proj.estimated_qty || 0;
+            });
+            document.getElementById('totalUnits').textContent = totalUnits;
+            document.getElementById('totalCost').textContent = '$' + totalCost.toFixed(0);
+        }
+
+        async function saveAll() {
+            const updates = [];
+            document.querySelectorAll('.proj-units').forEach(inp => {
+                const id = parseInt(inp.dataset.id);
+                const units = parseInt(inp.value) || 0;
+                const proj = projections.find(p => p.id === id);
+                if (proj && proj.projected_units !== units) {
+                    updates.push({ id, dish_id: proj.dish_id, projected_units: units });
+                }
+            });
+
+            if (!updates.length) {
+                alert('No hay cambios para guardar.');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/projections/bulk', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ projections: updates }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    alert('Guardado: ' + data.updated + ' proyecciones actualizadas.');
+                    loadProjections();
+                } else {
+                    alert('Error: ' + (data.error || 'desconocido'));
+                }
+            } catch(e) {
+                alert('Error al guardar: ' + e.message);
+            }
+        }
+
+        async function initProjections() {
+            try {
+                const res = await fetch('/api/projections/init', { method: 'POST' });
+                const data = await res.json();
+                if (res.ok) {
+                    alert('Inicializadas ' + data.created + ' proyecciones de ' + data.total + ' platos.');
+                    loadProjections();
+                } else {
+                    alert('Error: ' + (data.error || 'desconocido'));
+                }
+            } catch(e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
+        async function toggleActive(id, cb) {
+            try {
+                await fetch('/api/projections/' + id, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_active: cb.checked }),
+                });
+            } catch(e) {
+                cb.checked = !cb.checked;
+            }
+        }
+
+        function logout() {
+            fetch('/api/auth/logout', { method: 'POST' }).then(() => window.location.href = '/login');
+        }
+
+        loadProjections();
+    </script>
+</body>
+</html>

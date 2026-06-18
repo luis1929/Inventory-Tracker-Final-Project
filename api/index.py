@@ -39,6 +39,7 @@ T_MENU_RECIPE = 'menu_recipe_items'
 T_NUTRITION = 'nutrition_table'
 T_SALES = 'daily_sales'
 T_SALE_ITEMS = 'sale_items'
+T_PROJECTIONS = 'sales_projections'
 
 
 def get_api_config():
@@ -496,6 +497,26 @@ def _convert_val(val, measure):
     return round(val / 1000, 3)
 
 def _calc_needed_from_sales(days):
+    pr = api_req('GET', T_PROJ, params={'is_active': 'eq.true'})
+    has_projections = pr.status_code == 200 and len(pr.json()) > 0
+
+    if has_projections:
+        projections = pr.json()
+        rr = api_req('GET', T_MENU_RECIPE)
+        recipe_items = rr.json() if rr.status_code == 200 else []
+
+        needed = {}
+        for proj in projections:
+            did = proj['dish_id']
+            units = int(proj.get('projected_units', 30))
+            dish_recipe_ings = [ri for ri in recipe_items if ri['menu_item_id'] == did]
+            for ri in dish_recipe_ings:
+                name = ri['ingredient_name']
+                qty_grams = float(ri.get('quantity_grams', 0))
+                total_needed = qty_grams * units
+                needed[name] = needed.get(name, 0) + total_needed
+        return needed
+
     since = (datetime.utcnow() - timedelta(days=days)).isoformat()
     rs = api_req('GET', T_SALES, params={'created_at': 'gte.' + since, 'select': 'id'})
     sale_ids = [s['id'] for s in (rs.json() if rs.status_code == 200 else [])]
@@ -633,6 +654,123 @@ def global_shopping_list():
 
     shoppingList.sort(key=lambda x: x['name'])
     return jsonify({'shopping_list': shoppingList, 'total_cost': round(totalCost, 2), 'mode': mode})
+
+
+T_PROJ = 'sales_projections'
+
+@app.route('/projections')
+@api_auth_required
+def projections_page():
+    user = session.get('user', {})
+    return render_template('projections.html', user=user)
+
+@app.route('/api/projections', methods=['GET'])
+@api_auth_required
+def get_projections():
+    r = api_req('GET', T_PROJ, params={'order': 'dish_name.asc'})
+    if r.status_code == 404:
+        return jsonify({'projections': [], 'table_exists': False})
+    projections = r.json() if r.status_code == 200 else []
+    mr = api_req('GET', T_MENU)
+    menu_map = {m['id']: m for m in (mr.json() if mr.status_code == 200 else [])}
+    for p in projections:
+        dish = menu_map.get(p['dish_id'])
+        if dish:
+            p['category'] = dish.get('category', '')
+    return jsonify({'projections': projections, 'table_exists': True})
+
+@app.route('/api/projections/<int:proj_id>', methods=['PATCH'])
+@api_auth_required
+def update_projection(proj_id):
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Datos requeridos'}), 400
+    data['updated_at'] = datetime.utcnow().isoformat()
+    r = api_req('PATCH', T_PROJ, data=data, params={'id': 'eq.' + str(proj_id)})
+    if r.status_code in (200, 204):
+        return jsonify({'ok': True})
+    return jsonify({'error': r.text}), r.status_code
+
+@app.route('/api/projections/init', methods=['POST'])
+@api_auth_required
+def init_projections():
+    mr = api_req('GET', T_MENU, params={'order': 'category.asc,dish_name.asc', 'select': 'id,dish_name,category'})
+    menu_items = mr.json() if mr.status_code == 200 else []
+    rr = api_req('GET', T_MENU_RECIPE)
+    recipe_items = rr.json() if rr.status_code == 200 else []
+
+    dish_costs = {}
+    for ri in recipe_items:
+        did = ri['menu_item_id']
+        qty = float(ri.get('quantity_grams', 0))
+        cost = float(ri.get('unit_cost', 0))
+        if did not in dish_costs:
+            dish_costs[did] = {'qty': 0, 'cost': 0, 'name': ri['ingredient_name']}
+        dish_costs[did]['qty'] += qty
+        dish_costs[did]['cost'] += qty * cost / 1000
+
+    created = 0
+    today = datetime.utcnow().date()
+    for dish in menu_items:
+        did = dish['id']
+        cost_info = dish_costs.get(did, {'qty': 0, 'cost': 0})
+        unit_cost = round(cost_info['cost'], 2)
+        data = {
+            'dish_id': did,
+            'dish_name': dish['dish_name'],
+            'projected_units': 30,
+            'unit_cost': unit_cost,
+            'total_dish_cost': round(unit_cost * 30, 2),
+            'start_date': today.isoformat(),
+            'end_date': (today.replace(day=1) + timedelta(days=32)).replace(day=1).isoformat(),
+            'estimated_qty': round(cost_info['qty'] * 30, 2),
+            'estimated_cost': round(cost_info['cost'] * 30, 2),
+        }
+        r = api_req('POST', T_PROJ, data=data)
+        if r.status_code in (200, 201):
+            created += 1
+    return jsonify({'created': created, 'total': len(menu_items[:30])})
+
+@app.route('/api/projections/bulk', methods=['PUT'])
+@api_auth_required
+def bulk_update_projections():
+    data = request.get_json()
+    if not data or 'projections' not in data:
+        return jsonify({'error': 'projections required'}), 400
+
+    rr = api_req('GET', T_MENU_RECIPE)
+    recipe_items = rr.json() if rr.status_code == 200 else []
+    dish_costs = {}
+    for ri in recipe_items:
+        did = ri['menu_item_id']
+        qty = float(ri.get('quantity_grams', 0))
+        cost = float(ri.get('unit_cost', 0))
+        if did not in dish_costs:
+            dish_costs[did] = {'qty': 0, 'cost': 0}
+        dish_costs[did]['qty'] += qty
+        dish_costs[did]['cost'] += qty * cost / 1000
+
+    updated = 0
+    for proj in data['projections']:
+        pid = proj.get('id')
+        if not pid:
+            continue
+        did = proj.get('dish_id')
+        units = int(proj.get('projected_units', 30))
+        cost_info = dish_costs.get(did, {'qty': 0, 'cost': 0})
+        unit_cost = round(cost_info['cost'], 2)
+        update_data = {
+            'projected_units': units,
+            'unit_cost': unit_cost,
+            'total_dish_cost': round(unit_cost * units, 2),
+            'estimated_qty': round(cost_info['qty'] * units, 2),
+            'estimated_cost': round(cost_info['cost'] * units, 2),
+            'updated_at': datetime.utcnow().isoformat(),
+        }
+        r = api_req('PATCH', T_PROJ, data=update_data, params={'id': 'eq.' + str(pid)})
+        if r.status_code in (200, 204):
+            updated += 1
+    return jsonify({'updated': updated})
 
 
 @app.route('/api/recipes/<int:recipe_id>', methods=['PUT'])
