@@ -357,6 +357,13 @@
             w.document.write(html);
             w.document.close();
             w.print();
+
+            cart = [];
+            saveCart();
+            renderCart();
+            document.querySelectorAll('.cart-checkbox').forEach(cb => cb.checked = false);
+            const master = document.getElementById('selectAll');
+            if (master) master.checked = false;
         }
 
         async function loadInventory() {
