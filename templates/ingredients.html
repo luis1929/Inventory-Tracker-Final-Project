@@ -114,8 +114,7 @@
             <p class="cart-empty">Selecciona productos para agregar al carrito</p>
         </div>
         <div class="cart-footer" id="cartFooter" style="display:none;">
-            <button class="btn btn-secondary" onclick="copyCartBySupplier()" style="width:100%;font-size:0.9em;">&#128203; Copiar por proveedor</button>
-            <button class="btn" onclick="copyCartAll()" style="width:100%;margin-top:6px;font-size:0.9em;">&#128203; Copiar todo</button>
+            <button class="btn" onclick="generarOrdenCompra()" style="width:100%;font-size:0.9em;">&#128196; Generar orden de compra</button>
             <button class="btn" style="background:#e74c3c;margin-top:6px;width:100%;font-size:0.85em;" onclick="clearCart()">&#128465; Vaciar carrito</button>
         </div>
     </div>
@@ -282,32 +281,82 @@
             body.innerHTML = html;
         }
 
-        function copyCartBySupplier() {
+        function generarOrdenCompra() {
+            const today = new Date();
+            const dateStr = today.toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' });
+
             const groups = {};
             cart.forEach(item => {
                 const s = item.supplier || 'Sin proveedor';
                 if (!groups[s]) groups[s] = [];
                 groups[s].push(item);
             });
-            let text = 'CARRITO DE COMPRAS POR PROVEEDOR\n=================================\n\n';
-            Object.keys(groups).sort().forEach(sup => {
-                text += `--- ${sup} ---\n`;
-                groups[sup].forEach(item => {
-                    text += `${item.name} x${item.qty} — $${(item.qty * item.cost).toFixed(0)}\n`;
-                });
-                text += '\n';
-            });
-            navigator.clipboard.writeText(text).then(() => alert('Lista por proveedor copiada'));
-        }
 
-        function copyCartAll() {
-            let text = 'CARRITO DE COMPRAS\n==================\n\n';
-            cart.forEach(item => {
-                text += `${item.name} x${item.qty} — $${(item.qty * item.cost).toFixed(0)}\n`;
+            let html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+            <title>Orden de Compra</title>
+            <style>
+                @page { margin: 20mm; }
+                body { font-family: 'Inter', Arial, sans-serif; color: #333; font-size: 13px; margin: 0; padding: 30px; }
+                .header { text-align: center; border-bottom: 3px solid #d4a353; padding-bottom: 16px; margin-bottom: 24px; }
+                .header h1 { font-family: 'Playfair Display', Georgia, serif; font-size: 28px; color: #1a1a2e; margin: 0 0 4px; }
+                .header p { color: #666; margin: 2px 0; font-size: 12px; }
+                .meta { display: flex; justify-content: space-between; margin-bottom: 24px; font-size: 12px; }
+                .meta div { background: #f8f4ef; padding: 12px 16px; border-radius: 6px; }
+                .meta strong { color: #1a1a2e; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                th { background: #1a1a2e; color: white; padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+                td { padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 12px; }
+                .supplier-header { background: #f0e8dc; font-weight: 700; color: #1a1a2e; }
+                .supplier-header td { padding: 8px 12px; font-size: 13px; }
+                .num { text-align: right; }
+                .total-row td { font-weight: 700; border-top: 2px solid #1a1a2e; border-bottom: none; font-size: 13px; }
+                .footer { text-align: center; color: #999; font-size: 11px; margin-top: 32px; border-top: 1px solid #ddd; padding-top: 16px; }
+            </style></head><body>
+            <div class="header">
+                <h1>Orden de Compra</h1>
+                <p>KitchenMaster · Restaurante</p>
+            </div>
+            <div class="meta">
+                <div><strong>Fecha:</strong> ${dateStr}</div>
+                <div><strong>Proveedores:</strong> ${Object.keys(groups).length}</div>
+                <div><strong>Artículos:</strong> ${cart.length}</div>
+            </div>
+            <table>
+                <thead><tr>
+                    <th>Proveedor / Producto</th>
+                    <th class="num">Cant.</th>
+                    <th class="num">P. Unit.</th>
+                    <th class="num">Total</th>
+                </tr></thead><tbody>`;
+
+            let grandTotal = 0;
+            Object.keys(groups).sort().forEach(sup => {
+                const items = groups[sup];
+                let subTotal = 0;
+                html += `<tr class="supplier-header"><td colspan="4">&#128666; ${sup} (${items.length} art.)</td></tr>`;
+                items.forEach(item => {
+                    const lineTotal = item.qty * item.cost;
+                    subTotal += lineTotal;
+                    html += `<tr>
+                        <td>${item.name}${item.brand ? ' — ' + item.brand : ''}${item.presentation ? ' (' + item.presentation + ')' : ''}</td>
+                        <td class="num">${item.qty}</td>
+                        <td class="num">$${item.cost.toFixed(0)}</td>
+                        <td class="num">$${lineTotal.toFixed(0)}</td>
+                    </tr>`;
+                });
+                grandTotal += subTotal;
+                html += `<tr class="total-row"><td colspan="3">Subtotal ${sup}</td><td class="num">$${subTotal.toFixed(0)}</td></tr>`;
             });
-            const total = cart.reduce((s, i) => s + i.qty * i.cost, 0);
-            text += `\nTotal: $${total.toFixed(0)}`;
-            navigator.clipboard.writeText(text).then(() => alert('Lista copiada'));
+
+            html += `</tbody></table>
+            <div style="text-align:right;font-size:18px;font-weight:700;color:#1a1a2e;margin-top:8px;">Total: $${grandTotal.toFixed(0)}</div>
+            <div class="footer">Documento generado por KitchenMaster &mdash; ${dateStr}</div>
+            </body></html>`;
+
+            const w = window.open('', '_blank');
+            w.document.write(html);
+            w.document.close();
+            w.print();
         }
 
         async function loadInventory() {
