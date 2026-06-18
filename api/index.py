@@ -509,7 +509,7 @@ def _calc_needed_from_sales(days):
         for proj in projections:
             did = proj['dish_id']
             units = int(proj.get('projected_units', 30))
-            dish_recipe_ings = [ri for ri in recipe_items if ri['menu_item_id'] == did]
+            dish_recipe_ings = [ri for ri in recipe_items if (ri.get('menu_item_id') or ri['dish_id']) == did]
             for ri in dish_recipe_ings:
                 name = ri['ingredient_name']
                 qty_grams = float(ri.get('quantity_grams', 0))
@@ -701,11 +701,11 @@ def init_projections():
 
     dish_costs = {}
     for ri in recipe_items:
-        did = ri['menu_item_id']
+        did = ri.get('menu_item_id') or ri['dish_id']
         qty = float(ri.get('quantity_grams', 0))
         cost = float(ri.get('unit_cost', 0))
         if did not in dish_costs:
-            dish_costs[did] = {'qty': 0, 'cost': 0, 'name': ri['ingredient_name']}
+            dish_costs[did] = {'qty': 0, 'cost': 0}
         dish_costs[did]['qty'] += qty
         dish_costs[did]['cost'] += qty * cost / 1000
 
@@ -729,7 +729,8 @@ def init_projections():
         r = api_req('POST', T_PROJ, data=data)
         if r.status_code in (200, 201):
             created += 1
-    return jsonify({'created': created, 'total': len(menu_items[:30])})
+    return jsonify({'created': created, 'total': len(menu_items)})
+
 
 @app.route('/api/projections/bulk', methods=['PUT'])
 @api_auth_required
@@ -742,7 +743,7 @@ def bulk_update_projections():
     recipe_items = rr.json() if rr.status_code == 200 else []
     dish_costs = {}
     for ri in recipe_items:
-        did = ri['menu_item_id']
+        did = ri.get('menu_item_id') or ri['dish_id']
         qty = float(ri.get('quantity_grams', 0))
         cost = float(ri.get('unit_cost', 0))
         if did not in dish_costs:
