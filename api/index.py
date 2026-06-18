@@ -539,7 +539,7 @@ def _calc_needed_from_sales(days):
 
     needed = {}
     for did, units_sold in dish_units.items():
-        dish_recipe_ings = [ri for ri in recipe_items if ri['menu_item_id'] == did]
+        dish_recipe_ings = [ri for ri in recipe_items if (ri.get('menu_item_id') or ri['dish_id']) == did]
         for ri in dish_recipe_ings:
             name = ri['ingredient_name']
             qty_grams = float(ri.get('quantity_grams', 0))
@@ -707,14 +707,26 @@ def init_projections():
     recipe_items = rr.json() if rr.status_code == 200 else []
 
     dish_costs = {}
+    ing_map = {}
     for ri in recipe_items:
         did = ri.get('menu_item_id') or ri['dish_id']
         qty = float(ri.get('quantity_grams', 0))
         cost = float(ri.get('unit_cost', 0))
+        if cost <= 0:
+            if ri['ingredient_name'] not in ing_map:
+                r2 = api_req('GET', T_INGS, params={'name': 'eq.' + ri['ingredient_name'], 'select': 'cost,measure'})
+                ingd = r2.json()
+                if ingd:
+                    c = float(ingd[0].get('cost', 0))
+                    m = ingd[0].get('measure', 'g')
+                    ing_map[ri['ingredient_name']] = c * _cost_multiplier(m)
+                else:
+                    ing_map[ri['ingredient_name']] = 0
+            cost = ing_map[ri['ingredient_name']]
         if did not in dish_costs:
             dish_costs[did] = {'qty': 0, 'cost': 0}
         dish_costs[did]['qty'] += qty
-        dish_costs[did]['cost'] += qty * cost / 1000
+        dish_costs[did]['cost'] += qty * cost
 
     created = 0
     today = datetime.utcnow().date()
@@ -727,11 +739,10 @@ def init_projections():
             'dish_name': dish['dish_name'],
             'projected_units': 30,
             'unit_cost': unit_cost,
-            'total_dish_cost': round(unit_cost * 30, 2),
             'start_date': today.isoformat(),
             'end_date': (today.replace(day=1) + timedelta(days=32)).replace(day=1).isoformat(),
             'estimated_qty': round(cost_info['qty'] * 30, 2),
-            'estimated_cost': round(cost_info['cost'] * 30, 2),
+            'estimated_cost': round(unit_cost * 30, 2),
         }
         r = api_req('POST', T_PROJ, data=data)
         if r.status_code in (200, 201):
@@ -749,14 +760,26 @@ def bulk_update_projections():
     rr = api_req('GET', T_MENU_RECIPE)
     recipe_items = rr.json() if rr.status_code == 200 else []
     dish_costs = {}
+    ing_map = {}
     for ri in recipe_items:
         did = ri.get('menu_item_id') or ri['dish_id']
         qty = float(ri.get('quantity_grams', 0))
         cost = float(ri.get('unit_cost', 0))
+        if cost <= 0:
+            if ri['ingredient_name'] not in ing_map:
+                r2 = api_req('GET', T_INGS, params={'name': 'eq.' + ri['ingredient_name'], 'select': 'cost,measure'})
+                ingd = r2.json()
+                if ingd:
+                    c = float(ingd[0].get('cost', 0))
+                    m = ingd[0].get('measure', 'g')
+                    ing_map[ri['ingredient_name']] = c * _cost_multiplier(m)
+                else:
+                    ing_map[ri['ingredient_name']] = 0
+            cost = ing_map[ri['ingredient_name']]
         if did not in dish_costs:
             dish_costs[did] = {'qty': 0, 'cost': 0}
         dish_costs[did]['qty'] += qty
-        dish_costs[did]['cost'] += qty * cost / 1000
+        dish_costs[did]['cost'] += qty * cost
 
     updated = 0
     for proj in data['projections']:
@@ -770,9 +793,8 @@ def bulk_update_projections():
         update_data = {
             'projected_units': units,
             'unit_cost': unit_cost,
-            'total_dish_cost': round(unit_cost * units, 2),
             'estimated_qty': round(cost_info['qty'] * units, 2),
-            'estimated_cost': round(cost_info['cost'] * units, 2),
+            'estimated_cost': round(unit_cost * units, 2),
             'updated_at': datetime.utcnow().isoformat(),
         }
         r = api_req('PATCH', T_PROJ, data=update_data, params={'id': 'eq.' + str(pid)})
