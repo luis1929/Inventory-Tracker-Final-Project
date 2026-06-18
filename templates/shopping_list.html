@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lista de Compras - KitchenMaster</title>
     <link rel="stylesheet" href="/static/styles.css">
+    <style>
+        .low-stock-row { background: #fff3cd; }
+        .low-stock-row:hover { background: #ffe69c; }
+    </style>
 </head>
 <body class="page-compras">
 
@@ -42,6 +46,11 @@
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
                 <h2 style="margin:0;border:none;padding:0;font-size:1.2em;">&#128722; Artículos a comprar</h2>
                 <div style="display:flex;gap:8px;align-items:center;">
+                    <select id="filterShopping" onchange="renderShoppingList()" style="padding:6px 10px;border:1px solid var(--cream-dark);border-radius:4px;font-size:0.85em;">
+                        <option value="all">Todos</option>
+                        <option value="min_stock">Stock mínimo</option>
+                        <option value="menu">Menú</option>
+                    </select>
                     <span id="cartBadge" style="display:none;background:var(--primary);color:white;padding:4px 14px;border-radius:50px;font-size:0.85em;font-weight:600;cursor:pointer;" onclick="toggleCart()">&#128722; <span id="cartCount">0</span></span>
                     <button onclick="window.print()" class="btn btn-secondary" style="font-size:0.85em;padding:6px 14px;">&#128424; Imprimir</button>
                 </div>
@@ -75,6 +84,7 @@
 
     <script>
         let allItems = [];
+        let shoppingTotalCost = 0;
         let cart = JSON.parse(localStorage.getItem('shopCart') || '[]');
 
         function saveCart() {
@@ -278,55 +288,70 @@
                 const res = await fetch('/api/shopping-list');
                 const data = await res.json();
                 allItems = data.shopping_list || [];
-                const div = document.getElementById('shoppingListContent');
-
-                if (!allItems.length) {
-                    div.innerHTML = `
-                        <div style="text-align:center;padding:60px 20px;">
-                            <div style="font-size:4em;margin-bottom:16px;">&#127881;</div>
-                            <h2 style="font-family:'Playfair Display',serif;color:var(--dark);margin-bottom:8px;">No necesitas comprar nada</h2>
-                            <p style="color:var(--text-light);">Tienes todos los ingredientes necesarios para tus recetas del menú.</p>
-                        </div>
-                    `;
-                    return;
-                }
-
-                let html = `
-                    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-bottom:16px;gap:12px;">
-                        <span style="font-size:1.1em;">Total: <strong style="color:var(--primary);font-family:'Playfair Display',serif;font-size:1.2em;">$${data.total_cost.toFixed(2)}</strong></span>
-                        <span style="color:var(--text-light);font-size:0.9em;">${allItems.length} artículos</span>
-                    </div>
-                    <div class="table-wrapper"><table>
-                        <thead><tr>
-                            <th style="width:32px;"><input type="checkbox" id="selectAll" onchange="toggleAll(this)"></th>
-                            <th>#</th><th>Producto</th><th>Proveedor</th><th>Presentación</th><th>Cantidad</th><th>Costo Est.</th>
-                        </tr></thead><tbody>`;
-
-                allItems.forEach((item, i) => {
-                    const cartItem = cart.find(c => c.name === item.name);
-                    const custQty = cartItem ? cartItem.qty : item.qty;
-                    const itemCost = custQty * item.cost;
-                    html += `<tr>
-                        <td><input type="checkbox" class="cart-checkbox" data-name="${item.name}" ${cartItem ? 'checked' : ''} onchange="toggleCartItem('${item.name}', this)"></td>
-                        <td>${i + 1}</td>
-                        <td><strong>${item.name}</strong></td>
-                        <td style="font-size:0.85em;">${item.supplier || '-'}</td>
-                        <td style="font-size:0.85em;">${item.presentation || '-'}</td>
-                        <td><input type="number" id="qty-${item.name}" value="${custQty}" min="0.01" step="any" style="width:70px;padding:4px 6px;border:1px solid var(--cream-dark);border-radius:4px;font-size:0.9em;" oninput="updateRowCost('${item.name}')"> <span style="font-size:0.85em;color:var(--text-light);">${item.measure}</span></td>
-                        <td>$${itemCost.toFixed(0)}</td>
-                    </tr>`;
-                });
-
-                html += `</tbody></table></div>
-                    <p style="margin-top:12px;color:var(--text-light);font-size:0.85em;">
-                        &#128161; Selecciona los artículos con la casilla y ábrelos al carrito para agruparlos por proveedor.
-                    </p>`;
-
-                div.innerHTML = html;
+                shoppingTotalCost = data.total_cost || 0;
+                renderShoppingList();
                 updateCartBadge();
             } catch(e) {
                 document.getElementById('shoppingListContent').innerHTML = '<p class="message error">Error al cargar la lista de compras</p>';
             }
+        }
+
+        function renderShoppingList() {
+            const filter = document.getElementById('filterShopping').value;
+            const div = document.getElementById('shoppingListContent');
+
+            let filtered = allItems;
+            if (filter === 'min_stock') {
+                filtered = allItems.filter(i => i.reason === 'min_stock');
+            } else if (filter === 'menu') {
+                filtered = allItems.filter(i => i.reason === 'menu_needed');
+            }
+
+            if (!filtered.length) {
+                div.innerHTML = `
+                    <div style="text-align:center;padding:60px 20px;">
+                        <div style="font-size:4em;margin-bottom:16px;">&#127881;</div>
+                        <h2 style="font-family:'Playfair Display',serif;color:var(--dark);margin-bottom:8px;">No necesitas comprar nada</h2>
+                        <p style="color:var(--text-light);">Tienes todos los ingredientes necesarios para tus recetas del menú.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = `
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-bottom:16px;gap:12px;">
+                    <span style="font-size:1.1em;">Total: <strong style="color:var(--primary);font-family:'Playfair Display',serif;font-size:1.2em;">$${(shoppingTotalCost || 0).toFixed(2)}</strong></span>
+                    <span style="color:var(--text-light);font-size:0.9em;">${filtered.length} artículos</span>
+                </div>
+                <div class="table-wrapper"><table>
+                    <thead><tr>
+                        <th style="width:32px;"><input type="checkbox" id="selectAll" onchange="toggleAll(this)"></th>
+                        <th>#</th><th>Producto</th><th>Proveedor</th><th>Presentación</th><th>Cantidad</th><th>Costo Est.</th>
+                    </tr></thead><tbody>`;
+
+            filtered.forEach((item, i) => {
+                const cartItem = cart.find(c => c.name === item.name);
+                const custQty = cartItem ? cartItem.qty : item.qty;
+                const itemCost = custQty * item.cost;
+                const isMinStock = item.reason === 'min_stock';
+                html += `<tr${isMinStock ? ' class="low-stock-row"' : ''}>
+                    <td><input type="checkbox" class="cart-checkbox" data-name="${item.name}" ${cartItem ? 'checked' : ''} onchange="toggleCartItem('${item.name}', this)"></td>
+                    <td>${i + 1}${isMinStock ? ' &#9888;' : ''}</td>
+                    <td><strong>${item.name}</strong></td>
+                    <td style="font-size:0.85em;">${item.supplier || '-'}</td>
+                    <td style="font-size:0.85em;">${item.presentation || '-'}</td>
+                    <td><input type="number" id="qty-${item.name}" value="${custQty}" min="0.01" step="any" style="width:70px;padding:4px 6px;border:1px solid var(--cream-dark);border-radius:4px;font-size:0.9em;" oninput="updateRowCost('${item.name}')"> <span style="font-size:0.85em;color:var(--text-light);">${item.measure}</span></td>
+                    <td>$${itemCost.toFixed(0)}</td>
+                </tr>`;
+            });
+
+            html += `</tbody></table></div>
+                <p style="margin-top:12px;color:var(--text-light);font-size:0.85em;">
+                    &#128161; Selecciona los artículos con la casilla y ábrelos al carrito para agruparlos por proveedor.
+                </p>`;
+
+            div.innerHTML = html;
+            updateCartBadge();
         }
 
         function logout() {

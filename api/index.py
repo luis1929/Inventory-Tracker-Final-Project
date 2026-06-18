@@ -512,15 +512,23 @@ def global_shopping_list():
 
     shoppingList = []
     totalCost = 0
+    # Track which ingredients are already handled by menu need
+    handled = set()
     # Convert grams to appropriate measure for shopping
     for name, qty_needed in needed.items():
         ing = stock_map.get(name)
         if not ing:
             continue
         stock = float(ing.get('count', 0))
+        min_stock = float(ing.get('min_stock', 0) or 0)
         missing = max(0, qty_needed - stock)
-        if missing <= 0:
+        if missing <= 0 and stock >= min_stock:
             continue
+        # If stock is above min_stock but missing is positive, use missing
+        # If stock is below min_stock, ensure we buy enough to cover both
+        if stock < min_stock:
+            missing = max(missing, min_stock - stock)
+        handled.add(name)
 
         measure = ing.get('measure', 'g')
         cost = float(ing.get('cost', 0))
@@ -556,6 +564,56 @@ def global_shopping_list():
             'brand': ing.get('brand', ''),
             'presentation': ing.get('presentation', ''),
             'classification': ing.get('classification', ''),
+            'reason': 'menu_needed' if qty_needed > stock else 'min_stock',
+        })
+
+    # Add ingredients below min_stock that aren't needed by any dish
+    for ing in ingredients:
+        name = ing['name']
+        if name in handled:
+            continue
+        stock = float(ing.get('count', 0))
+        min_stock = float(ing.get('min_stock', 0) or 0)
+        if stock >= min_stock:
+            continue
+        missing = min_stock - stock
+        if missing <= 0:
+            continue
+
+        measure = ing.get('measure', 'g')
+        cost = float(ing.get('cost', 0))
+
+        if measure == 'g':
+            display_qty = round(missing, 0)
+            display_measure = 'g'
+        elif measure == 'kg':
+            display_qty = round(missing / 1000, 2)
+            display_measure = 'kg'
+        elif measure == 'ml':
+            display_qty = round(missing, 0)
+            display_measure = 'ml'
+        elif measure == 'l':
+            display_qty = round(missing / 1000, 2)
+            display_measure = 'l'
+        elif measure == 'lb':
+            display_qty = round(missing / 453.592, 2)
+            display_measure = 'lb'
+        else:
+            display_qty = round(missing, 0)
+            display_measure = measure
+
+        item_cost = display_qty * cost
+        totalCost += item_cost
+        shoppingList.append({
+            'name': name,
+            'qty': display_qty,
+            'measure': display_measure,
+            'cost': cost,
+            'supplier': ing.get('supplier', 'Sin proveedor'),
+            'brand': ing.get('brand', ''),
+            'presentation': ing.get('presentation', ''),
+            'classification': ing.get('classification', ''),
+            'reason': 'min_stock',
         })
 
     shoppingList.sort(key=lambda x: x['name'])
