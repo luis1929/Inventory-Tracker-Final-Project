@@ -495,31 +495,75 @@ def _convert_val(val, measure):
         return round(val / 453.592, 2)
     return round(val / 1000, 3)
 
+def _calc_needed_from_sales(days):
+    since = (datetime.utcnow() - timedelta(days=days)).isoformat()
+    rs = api_req('GET', T_SALES, params={'created_at': 'gte.' + since, 'select': 'id'})
+    sale_ids = [s['id'] for s in (rs.json() if rs.status_code == 200 else [])]
+    if not sale_ids:
+        return {}
+
+    items_resp = api_req('GET', T_SALE_ITEMS, params={
+        'sale_id': 'in.(' + ','.join(str(s) for s in sale_ids) + ')'
+    })
+    sale_items = items_resp.json() if items_resp.status_code == 200 else []
+
+    dish_units = {}
+    for si in sale_items:
+        did = si['dish_id']
+        qty = int(si.get('quantity', 0))
+        dish_units[did] = dish_units.get(did, 0) + qty
+
+    rr = api_req('GET', T_MENU_RECIPE)
+    recipe_items = rr.json() if rr.status_code == 200 else []
+
+    needed = {}
+    for did, units_sold in dish_units.items():
+        dish_recipe_ings = [ri for ri in recipe_items if ri['menu_item_id'] == did]
+        for ri in dish_recipe_ings:
+            name = ri['ingredient_name']
+            qty_grams = float(ri.get('quantity_grams', 0))
+            total_needed = qty_grams * units_sold
+            needed[name] = needed.get(name, 0) + total_needed
+    return needed
+
+
 @app.route('/api/shopping-list', methods=['GET'])
 @api_auth_required
 def global_shopping_list():
-    # Get all inventory
+    mode = request.args.get('mode', 'stock')
+    if mode not in ('stock', 'sales'):
+        mode = 'stock'
+
     r = api_req('GET', T_INGS)
     ingredients = r.json() if r.status_code == 200 else []
     stock_map = {i['name']: i for i in ingredients}
 
-    # Get all menu recipe items (ingredients across all dishes)
-    rr = api_req('GET', T_MENU_RECIPE)
-    all_items = rr.json() if rr.status_code == 200 else []
+    if mode == 'sales':
+        days = int(request.args.get('days', 30))
+        needed = _calc_needed_from_sales(days)
+    else:
+        rr = api_req('GET', T_MENU_RECIPE)
+        all_items = rr.json() if rr.status_code == 200 else []
+        needed = {}
+        for item in all_items:
+            name = item['ingredient_name']
+            qty = float(item.get('quantity_grams', 0))
+            if name not in needed:
+                needed[name] = 0
+            needed[name] += qty
 
-    needed = {}
-    for item in all_items:
-        name = item['ingredient_name']
-        qty = float(item.get('quantity_grams', 0))
-        if name not in needed:
-            needed[name] = 0
-        needed[name] += qty
+    def convert_qty(val, measure):
+        if measure == 'g': return round(val, 0), 'g'
+        if measure == 'kg': return round(val / 1000, 2), 'kg'
+        if measure == 'ml': return round(val, 0), 'ml'
+        if measure == 'l': return round(val / 1000, 2), 'l'
+        if measure == 'lb': return round(val / 453.592, 2), 'lb'
+        return round(val, 0), measure
 
     shoppingList = []
     totalCost = 0
-    # Track which ingredients are already handled by menu need
     handled = set()
-    # Convert grams to appropriate measure for shopping
+
     for name, qty_needed in needed.items():
         ing = stock_map.get(name)
         if not ing:
@@ -529,34 +573,13 @@ def global_shopping_list():
         missing = max(0, qty_needed - stock)
         if missing <= 0 and stock >= min_stock:
             continue
-        # If stock is above min_stock but missing is positive, use missing
-        # If stock is below min_stock, ensure we buy enough to cover both
         if stock < min_stock:
             missing = max(missing, min_stock - stock)
         handled.add(name)
 
         measure = ing.get('measure', 'g')
         cost = float(ing.get('cost', 0))
-
-        # Convert missing grams to display unit
-        if measure == 'g':
-            display_qty = round(missing, 0)
-            display_measure = 'g'
-        elif measure == 'kg':
-            display_qty = round(missing / 1000, 2)
-            display_measure = 'kg'
-        elif measure == 'ml':
-            display_qty = round(missing, 0)
-            display_measure = 'ml'
-        elif measure == 'l':
-            display_qty = round(missing / 1000, 2)
-            display_measure = 'l'
-        elif measure == 'lb':
-            display_qty = round(missing / 453.592, 2)
-            display_measure = 'lb'
-        else:
-            display_qty = round(missing, 0)
-            display_measure = measure
+        display_qty, display_measure = convert_qty(missing, measure)
 
         item_cost = display_qty * cost
         totalCost += item_cost
@@ -575,7 +598,6 @@ def global_shopping_list():
             'stock_measure': {'g': 'kg', 'ml': 'l'}.get(measure, measure),
         })
 
-    # Add ingredients below min_stock that aren't needed by any dish
     for ing in ingredients:
         name = ing['name']
         if name in handled:
@@ -590,25 +612,7 @@ def global_shopping_list():
 
         measure = ing.get('measure', 'g')
         cost = float(ing.get('cost', 0))
-
-        if measure == 'g':
-            display_qty = round(missing, 0)
-            display_measure = 'g'
-        elif measure == 'kg':
-            display_qty = round(missing / 1000, 2)
-            display_measure = 'kg'
-        elif measure == 'ml':
-            display_qty = round(missing, 0)
-            display_measure = 'ml'
-        elif measure == 'l':
-            display_qty = round(missing / 1000, 2)
-            display_measure = 'l'
-        elif measure == 'lb':
-            display_qty = round(missing / 453.592, 2)
-            display_measure = 'lb'
-        else:
-            display_qty = round(missing, 0)
-            display_measure = measure
+        display_qty, display_measure = convert_qty(missing, measure)
 
         item_cost = display_qty * cost
         totalCost += item_cost
@@ -628,7 +632,7 @@ def global_shopping_list():
         })
 
     shoppingList.sort(key=lambda x: x['name'])
-    return jsonify({'shopping_list': shoppingList, 'total_cost': round(totalCost, 2)})
+    return jsonify({'shopping_list': shoppingList, 'total_cost': round(totalCost, 2), 'mode': mode})
 
 
 @app.route('/api/recipes/<int:recipe_id>', methods=['PUT'])

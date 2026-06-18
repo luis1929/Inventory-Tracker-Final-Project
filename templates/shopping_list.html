@@ -10,6 +10,21 @@
         .low-stock-row:hover { background: #ffe69c; }
         .supplier-row td { background: #f0e8dc; font-weight: 700; color: #1a1a2e; padding: 8px 12px !important; border-bottom: 2px solid #d4a353; }
         .sup-total-row td { font-size: 0.9em; }
+        .nav-dropdown { position: relative; }
+        .nav-dropdown > a { cursor: pointer; }
+        .nav-dropdown-menu { display: none; position: absolute; top: 100%; left: 0; background: #1a1a2e; min-width: 180px; border-radius: 6px; padding: 4px 0; z-index: 100; box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
+        .nav-dropdown-menu li { list-style: none; }
+        .nav-dropdown-menu a { display: block; padding: 8px 16px; color: #ddd; font-size: 0.85em; text-decoration: none; white-space: nowrap; }
+        .nav-dropdown-menu a:hover { background: #2a2a4e; color: #fff; }
+        .nav-dropdown:hover .nav-dropdown-menu { display: block; }
+        .mode-tabs { display:flex; gap:0; border:1px solid var(--cream-dark); border-radius:6px; overflow:hidden; }
+        .mode-tab { padding:8px 18px; font-size:0.85em; cursor:pointer; background:#f8f4ef; color:var(--text-light); border:none; border-right:1px solid var(--cream-dark); font-weight:500; transition:background 0.2s; }
+        .mode-tab:last-child { border-right:none; }
+        .mode-tab.active { background:var(--primary); color:#fff; }
+        .mode-tab:hover:not(.active) { background:#ede4d8; }
+        .sales-config { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+        .sales-config label { font-size:0.85em; color:var(--text-light); }
+        .sales-config select, .sales-config input { padding:6px 10px; border:1px solid var(--cream-dark); border-radius:4px; font-size:0.85em; }
     </style>
 </head>
 <body class="page-compras">
@@ -19,7 +34,13 @@
             <a href="/" class="nav-brand">&#127860; <span>K</span>itchen<span>M</span>aster</a>
             <ul class="nav-links">
                 <li><a href="/">&#127968; <span>Inicio</span></a></li>
-                <li><a href="/shopping-list" class="active">&#128722; <span>Compras</span></a></li>
+                <li class="nav-dropdown">
+                    <a href="#" class="active">&#128722; <span>Compras</span> &#9660;</a>
+                    <ul class="nav-dropdown-menu">
+                        <li><a href="/shopping-list?mode=stock">Comp x Stock</a></li>
+                        <li><a href="/shopping-list?mode=sales">Comp x Proy Venta</a></li>
+                    </ul>
+                </li>
                 <li><a href="/ingredients">&#127838; <span>Ingredientes</span></a></li>
                 <li><a href="/pos">&#128176; <span>POS</span></a></li>
                 <li><a href="/menu-planner">&#128203; <span>Menu</span></a></li>
@@ -37,7 +58,7 @@
         <div class="hero-content">
             <div class="hero-badge">&#128722; Mercado</div>
             <h1>Lista de <span>Compras</span></h1>
-            <p>Selecciona los artículos que necesitas y agrúpalos por proveedor para hacer tus pedidos.</p>
+            <p id="heroDesc">Selecciona los artículos que necesitas y agrúpalos por proveedor para hacer tus pedidos.</p>
         </div>
     </section>
 
@@ -46,13 +67,37 @@
 
         <div class="content-card">
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
-                <h2 style="margin:0;border:none;padding:0;font-size:1.2em;">&#128722; Artículos a comprar</h2>
+                <h2 style="margin:0;border:none;padding:0;font-size:1.2em;">&#128722; <span id="modeTitle">Artículos a comprar</span></h2>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <div class="mode-tabs">
+                        <button class="mode-tab active" data-mode="stock" onclick="setMode('stock')">Comp x Stock</button>
+                        <button class="mode-tab" data-mode="sales" onclick="setMode('sales')">Comp x Proy Venta</button>
+                    </div>
+                </div>
+            </div>
+            <div id="salesConfig" style="display:none;margin-bottom:16px;">
+                <div class="sales-config">
+                    <label>Ventas de los últimos:</label>
+                    <select id="salesDays" onchange="onSalesConfigChange()">
+                        <option value="7">7 días</option>
+                        <option value="15">15 días</option>
+                        <option value="30" selected>30 días</option>
+                        <option value="60">60 días</option>
+                        <option value="90">90 días</option>
+                    </select>
+                    <button class="btn btn-secondary" style="font-size:0.85em;padding:6px 14px;" onclick="loadShoppingList()">&#128260; Calcular</button>
+                </div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:16px;">
                 <div style="display:flex;gap:8px;align-items:center;">
                     <select id="filterShopping" onchange="renderShoppingList()" style="padding:6px 10px;border:1px solid var(--cream-dark);border-radius:4px;font-size:0.85em;">
                         <option value="all">Todos</option>
                         <option value="min_stock">Stock mínimo</option>
                         <option value="menu">Menú</option>
                     </select>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <span style="font-size:0.9em;color:var(--text-light);">Valor Compra Estimado: <strong id="estimatedValue" style="color:var(--primary);font-size:1.1em;">$0</strong></span>
                     <span id="cartBadge" style="background:var(--primary);color:white;padding:4px 14px;border-radius:50px;font-size:0.85em;font-weight:600;cursor:pointer;" onclick="toggleCart()">&#128722; <span id="cartCount">0</span></span>
                     <button onclick="window.print()" class="btn btn-secondary" style="font-size:0.85em;padding:6px 14px;">&#128424; Imprimir</button>
                 </div>
@@ -86,7 +131,38 @@
     <script>
         let allItems = [];
         let shoppingTotalCost = 0;
+        let currentMode = 'stock';
         let cart = JSON.parse(localStorage.getItem('shopCart') || '[]');
+
+        function getParams() {
+            const p = new URLSearchParams(window.location.search);
+            return { mode: p.get('mode') || 'stock' };
+        }
+
+        function setMode(mode, skipLoad) {
+            currentMode = mode;
+            document.querySelectorAll('.mode-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
+            const cfg = document.getElementById('salesConfig');
+            cfg.style.display = mode === 'sales' ? 'block' : 'none';
+            const desc = document.getElementById('heroDesc');
+            const title = document.getElementById('modeTitle');
+            if (mode === 'sales') {
+                desc.textContent = 'Basado en ventas históricas, proyecta los ingredientes que necesitarás comprar.';
+                title.textContent = 'Compra por Proyección de Ventas';
+            } else {
+                desc.textContent = 'Selecciona los artículos que necesitas y agrúpalos por proveedor para hacer tus pedidos.';
+                title.textContent = 'Artículos a comprar';
+            }
+            if (!skipLoad) {
+                loadShoppingList();
+            }
+        }
+
+        function onSalesConfigChange() {
+            if (currentMode === 'sales' && allItems.length) {
+                loadShoppingList();
+            }
+        }
 
         function saveCart() {
             localStorage.setItem('shopCart', JSON.stringify(cart));
@@ -359,7 +435,12 @@
 
         async function loadShoppingList() {
             try {
-                const res = await fetch('/api/shopping-list');
+                document.getElementById('shoppingListContent').innerHTML = '<p class="loading">Calculando lista de compras...</p>';
+                let url = '/api/shopping-list?mode=' + currentMode;
+                if (currentMode === 'sales') {
+                    url += '&days=' + (document.getElementById('salesDays').value || 30);
+                }
+                const res = await fetch(url);
                 const data = await res.json();
                 allItems = data.shopping_list || [];
                 shoppingTotalCost = data.total_cost || 0;
@@ -385,8 +466,11 @@
         }
 
         function updateCompraTotal() {
+            const total = calcCompraTotal();
             const el = document.getElementById('compraTotal');
-            if (el) el.textContent = `$${calcCompraTotal().toFixed(0)}`;
+            if (el) el.textContent = `$${total.toFixed(0)}`;
+            const ev = document.getElementById('estimatedValue');
+            if (ev) ev.textContent = `$${total.toFixed(0)}`;
         }
 
         function renderShoppingList() {
@@ -467,13 +551,19 @@
                 </div>`;
 
             div.innerHTML = html;
+            updateCompraTotal();
             updateCartBadge();
         }
 
         function logout() {
             fetch('/api/auth/logout', { method: 'POST' }).then(() => window.location.href = '/login');
         }
-        loadShoppingList();
+        (function init() {
+            const p = getParams();
+            currentMode = p.mode;
+            setMode(currentMode, true);
+            loadShoppingList();
+        })();
     </script>
 </body>
 </html>
