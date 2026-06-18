@@ -84,7 +84,7 @@
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
                 <h2 style="margin:0;border:none;padding:0;">&#128202; Inventario Actual</h2>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-                    <span id="cartBadge" style="display:none;background:var(--primary);color:white;padding:4px 14px;border-radius:50px;font-size:0.85em;font-weight:600;cursor:pointer;" onclick="toggleCart()">&#128722; <span id="cartCount">0</span></span>
+                    <span id="cartBadge" style="background:var(--primary);color:white;padding:4px 14px;border-radius:50px;font-size:0.85em;font-weight:600;cursor:pointer;" onclick="toggleCart()">&#128722; <span id="cartCount">0</span></span>
                     <a href="/api/ingredients/export" class="btn btn-secondary" style="text-decoration:none;font-size:0.85em;">&#128229; Exportar CSV</a>
                 </div>
             </div>
@@ -226,10 +226,8 @@
         }
 
         function updateCartBadge() {
-            const badge = document.getElementById('cartBadge');
             const count = document.getElementById('cartCount');
-            count.textContent = cart.length;
-            badge.style.display = cart.length > 0 ? 'inline-block' : 'none';
+            if (count) count.textContent = cart.length;
         }
 
         function renderCart() {
