@@ -51,7 +51,7 @@
                         <option value="min_stock">Stock mínimo</option>
                         <option value="menu">Menú</option>
                     </select>
-                    <span id="cartBadge" style="display:none;background:var(--primary);color:white;padding:4px 14px;border-radius:50px;font-size:0.85em;font-weight:600;cursor:pointer;" onclick="toggleCart()">&#128722; <span id="cartCount">0</span></span>
+                    <span id="cartBadge" style="background:var(--primary);color:white;padding:4px 14px;border-radius:50px;font-size:0.85em;font-weight:600;cursor:pointer;" onclick="toggleCart()">&#128722; <span id="cartCount">0</span></span>
                     <button onclick="window.print()" class="btn btn-secondary" style="font-size:0.85em;padding:6px 14px;">&#128424; Imprimir</button>
                 </div>
             </div>
@@ -197,10 +197,8 @@
         }
 
         function updateCartBadge() {
-            const badge = document.getElementById('cartBadge');
             const count = document.getElementById('cartCount');
-            count.textContent = cart.length;
-            badge.style.display = cart.length > 0 ? 'inline-block' : 'none';
+            if (count) count.textContent = cart.length;
         }
 
         function renderCart() {
