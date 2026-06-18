@@ -160,12 +160,16 @@
             }
         }
 
+        function fmt(n, decimals) {
+            return Number(n).toLocaleString('en-US', {minimumFractionDigits: decimals, maximumFractionDigits: decimals});
+        }
+
         function renderAnalytics() {
             const d = analyticsData;
 
-            document.getElementById('sumIngredients').textContent = d.ingredient_count;
-            document.getElementById('sumRecipes').textContent = d.recipe_count;
-            document.getElementById('sumValue').textContent = '$' + d.total_inventory_value.toLocaleString();
+            document.getElementById('sumIngredients').textContent = fmt(d.ingredient_count, 0);
+            document.getElementById('sumRecipes').textContent = fmt(d.recipe_count, 0);
+            document.getElementById('sumValue').textContent = '$' + fmt(d.total_inventory_value, 0);
 
             const h = d.health;
             const total = h.ok + h.low + h.out;
@@ -198,6 +202,7 @@
                     maintainAspectRatio: false,
                     plugins: {
                         legend: { position: 'bottom', labels: { padding: 16, usePointStyle: true } },
+                        tooltip: { callbacks: { label: ctx => ctx.label + ': ' + fmt(ctx.raw, 0) } }
                     },
                     cutout: '65%',
                 }
@@ -226,10 +231,13 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     indexAxis: 'y',
-                    plugins: { legend: { display: false } },
                     scales: {
-                        x: { ticks: { callback: v => '$' + v } },
+                        x: { ticks: { callback: v => '$' + fmt(v, 0) } },
                         y: { ticks: { font: { size: 10 } } }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: ctx => '$' + fmt(ctx.raw, 0) } }
                     }
                 }
             });
@@ -256,9 +264,12 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     indexAxis: 'y',
-                    plugins: { legend: { display: false } },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: ctx => '$' + fmt(ctx.raw, 0) } }
+                    },
                     scales: {
-                        x: { ticks: { callback: v => '$' + v } },
+                        x: { ticks: { callback: v => '$' + fmt(v, 0) } },
                         y: { ticks: { font: { size: 10 } } }
                     }
                 }
@@ -281,9 +292,9 @@
                 const units = r.units_sold || 0;
                 html += '<tr>' +
                     '<td><strong>' + r.recipe_name + '</strong></td>' +
-                    '<td>$' + cost.toFixed(0) + '</td>' +
-                    '<td>' + (sale > 0 ? '$' + sale.toFixed(0) : '—') + '</td>' +
-                    '<td>' + units + '</td>' +
+                    '<td>$' + fmt(cost, 0) + '</td>' +
+                    '<td>' + (sale > 0 ? '$' + fmt(sale, 0) : '—') + '</td>' +
+                    '<td>' + fmt(units, 0) + '</td>' +
                     '</tr>';
             });
             html += '</tbody></table></div>';
@@ -302,9 +313,9 @@
                 html += `<tr>
                     <td><strong>${r.recipe_name}</strong></td>
                     <td>${r.ingredient_count}</td>
-                    <td>$${r.cost.toFixed(2)}</td>
-                    <td>$${(r.cost * 2).toFixed(2)}</td>
-                    <td>$${(r.cost * 3).toFixed(2)}</td>
+                    <td>$${fmt(r.cost, 2)}</td>
+                    <td>$${fmt(r.cost * 2, 2)}</td>
+                    <td>$${fmt(r.cost * 3, 2)}</td>
                 </tr>`;
             });
             html += '</tbody></table></div>';
