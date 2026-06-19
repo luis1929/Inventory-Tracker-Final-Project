@@ -875,6 +875,102 @@ def seed_precios():
     return jsonify({'seeded': seeded})
 
 
+@app.route('/dashboard')
+@login_required
+def dashboard_page():
+    return render_template('dashboard.html', user=session['user'], is_admin=is_admin(session.get('email', '')))
+
+
+@app.route('/api/dashboard', methods=['GET'])
+@api_auth_required
+def get_dashboard_data():
+    ings = api_req('GET', T_INGS, params={'select': 'name,classification,cost,count,min_stock,measure,supplier'})
+    ings = ings.json() if ings.status_code == 200 else []
+
+    menus = api_req('GET', T_MENU, params={'select': 'dish_name,cost_total,sale_price,category'})
+    menus = menus.json() if menus.status_code == 200 else []
+
+    sales = api_req('GET', T_SALES, params={'select': 'created_at,total_sale,total_cost,total_profit', 'order': 'created_at.asc'})
+    sales = sales.json() if sales.status_code == 200 else []
+
+    projs = api_req('GET', T_PROJECTIONS, params={'select': 'dish_name,projected_units,unit_cost', 'is_active': 'eq.true'})
+    projs = projs.json() if projs.status_code == 200 else []
+
+    precios = api_req('GET', T_PRECIOS, params={'select': 'ingrediente,supermercado,precio'})
+    precios = precios.json() if precios.status_code == 200 else []
+
+    from collections import defaultdict
+
+    # Clasificación
+    cls_counts = defaultdict(lambda: {'count': 0, 'cost': 0})
+    for i in ings:
+        c = i.get('classification') or 'Sin clasificar'
+        cls_counts[c]['count'] += 1
+        cls_counts[c]['cost'] += (i.get('cost') or 0) * (i.get('count') or 0)
+    clasificacion = [{'name': k, 'count': v['count'], 'cost': round(v['cost'], 0)} for k, v in cls_counts.items()]
+
+    # Top costosos
+    costosos = sorted([i for i in ings if (i.get('cost') or 0) > 0], key=lambda x: x['cost'], reverse=True)[:20]
+    top_costosos = [{'name': i['name'], 'cost': round(i['cost'], 0), 'total': round((i.get('cost') or 0) * (i.get('count') or 0), 0)} for i in costosos]
+
+    # Stock bajo
+    stock_bajo = [{'name': i['name'], 'measure': i.get('measure',''), 'stock': i.get('count',0), 'min': i.get('min_stock',0)} for i in ings if (i.get('count') or 0) <= (i.get('min_stock') or 0)]
+
+    # Márgenes
+    margenes = sorted([m for m in menus if (m.get('cost_total') or 0) > 0 and (m.get('sale_price') or 0) > 0],
+                      key=lambda x: (x['sale_price'] - x['cost_total']) / x['sale_price'] * 100, reverse=True)[:20]
+    margen_data = [{'name': m['dish_name'], 'costo': round(m['cost_total'],0), 'precio': round(m['sale_price'],0), 'margen': round((m['sale_price'] - m['cost_total']) / m['sale_price'] * 100, 1)} for m in margenes]
+
+    # Ventas diarias
+    from datetime import datetime as dt
+    ventas_diarias = defaultdict(lambda: {'ventas': 0, 'costos': 0, 'ganancia': 0})
+    for s in sales:
+        try:
+            dia = dt.fromisoformat(s['created_at'].replace('Z','+00:00')).strftime('%Y-%m-%d')
+        except:
+            dia = str(s['created_at'])[:10]
+        ventas_diarias[dia]['ventas'] += (s.get('total_sale') or 0)
+        ventas_diarias[dia]['costos'] += (s.get('total_cost') or 0)
+        ventas_diarias[dia]['ganancia'] += (s.get('total_profit') or 0)
+    ventas = sorted([{'fecha': k, 'ventas': round(v['ventas'],0), 'costos': round(v['costos'],0), 'ganancia': round(v['ganancia'],0)} for k, v in ventas_diarias.items()], key=lambda x: x['fecha'])[-30:]
+
+    # Proyecciones
+    proj_data = sorted(projs, key=lambda x: x.get('projected_units') or 0, reverse=True)[:20]
+
+    # Proveedores
+    prov_counts = defaultdict(lambda: {'count': 0, 'cost': 0})
+    for i in ings:
+        s = i.get('supplier') or 'Sin proveedor'
+        if s:
+            prov_counts[s]['count'] += 1
+            prov_counts[s]['cost'] += (i.get('cost') or 0) * (i.get('count') or 0)
+    proveedores = sorted([{'name': k, 'count': v['count'], 'cost': round(v['cost'], 0)} for k, v in prov_counts.items()], key=lambda x: x['cost'], reverse=True)[:10]
+
+    # KPIs
+    kpi_valor_inv = round(sum((i.get('cost') or 0) * (i.get('count') or 0) for i in ings), 0)
+    kpi_total_ings = len(ings)
+    kpi_total_platos = len(menus)
+    kpi_ventas = round(sum(s.get('total_sale') or 0 for s in sales), 0)
+    kpi_ganancia = round(sum(s.get('total_profit') or 0 for s in sales), 0)
+
+    return jsonify({
+        'kpis': {
+            'valor_inventario': kpi_valor_inv,
+            'total_ingredientes': kpi_total_ings,
+            'total_platos': kpi_total_platos,
+            'ventas_totales': kpi_ventas,
+            'ganancia_total': kpi_ganancia,
+        },
+        'clasificacion': clasificacion,
+        'top_costosos': top_costosos,
+        'stock_bajo': stock_bajo,
+        'margenes': margen_data,
+        'ventas_diarias': ventas,
+        'proyecciones': proj_data,
+        'proveedores': proveedores,
+    })
+
+
 @app.route('/api/recipes/<int:recipe_id>', methods=['PUT'])
 @api_auth_required
 def update_recipe(recipe_id):
