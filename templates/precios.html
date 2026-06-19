@@ -14,6 +14,14 @@
         .precio-alto { color:#e74c3c; }
         .nuestro-costo { font-weight:bold; }
         .super-header { background:#f0ebe3 !important; font-weight:bold; }
+        .edit-precio { width:80px; padding:3px 6px; border:1px solid #ccc; border-radius:4px; font-size:0.85em; text-align:right; }
+        .edit-precio:focus { outline:2px solid var(--primary); border-color:var(--primary); }
+        .btn-save-precio { background:var(--primary); color:#fff; border:none; padding:3px 8px; border-radius:4px; cursor:pointer; font-size:0.75em; }
+        .btn-save-precio:hover { opacity:0.85; }
+        .seed-btn { background:var(--primary); color:#fff; border:none; padding:10px 20px; border-radius:6px; cursor:pointer; font-size:0.9em; }
+        .seed-btn:hover { opacity:0.85; }
+        .toast { position:fixed; bottom:20px; right:20px; background:#27ae60; color:#fff; padding:12px 24px; border-radius:8px; opacity:0; transition:opacity 0.3s; z-index:999; }
+        .toast.show { opacity:1; }
     </style>
 </head>
 <body>
@@ -51,23 +59,27 @@
                 <span>Precios de supermercados vs tu costo actual</span>
             </div>
             <div class="card-body">
+                <div style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                    <button class="seed-btn" onclick="seedPrices()">&#128200; Generar precios estimados</button>
+                    <span style="font-size:0.8em;color:var(--text-light);">Genera precios de supermercado basados en tu costo actual (&#177;30-50%)</span>
+                </div>
                 <div id="preciosContent">
                     <div class="table-wrapper"><table class="precio-table">
                         <thead><tr>
                             <th>Ingrediente</th>
-                            <th>Tu Costo (kg)</th>
+                            <th>Tu Costo</th>
                             <th>Olímpica</th>
                             <th>Carulla</th>
                             <th>Éxito</th>
                             <th>Makro</th>
-                            <th>MercadoLibre</th>
                         </tr></thead>
                         <tbody id="preciosBody">
-                            <tr><td colspan="7" class="loading">Cargando precios...</td></tr>
+                            <tr><td colspan="6" class="loading">Cargando precios...</td></tr>
                         </tbody>
                     </table></div>
                     <div style="margin-top:12px;font-size:0.8em;color:var(--text-light);">
                         &#128161; Precios actualizados: <span id="fechaActualizacion">—</span>
+                        &nbsp;&middot;&nbsp; Haz clic en un precio para editarlo manualmente
                     </div>
                 </div>
             </div>
@@ -80,6 +92,62 @@
 
     <script>
         let costosMap = {};
+        const SUPERM = ['Olímpica', 'Carulla', 'Éxito', 'Makro'];
+
+        function showToast(msg, color='#27ae60') {
+            let t = document.getElementById('toast');
+            if (!t) {
+                t = document.createElement('div');
+                t.id = 'toast';
+                t.className = 'toast';
+                document.body.appendChild(t);
+            }
+            t.textContent = msg;
+            t.style.background = color;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+
+        async function savePrecio(ing, sm, input) {
+            const val = parseFloat(input.value);
+            if (isNaN(val) || val <= 0) return;
+            try {
+                const r = await fetch('/api/precios', {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ingrediente: ing, supermercado: sm, precio: val})
+                });
+                const d = await r.json();
+                if (d.ok) {
+                    showToast(`$${val.toFixed(0)} guardado para ${ing} en ${sm}`);
+                    loadPrecios();
+                } else {
+                    showToast('Error al guardar', '#e74c3c');
+                }
+            } catch(e) {
+                showToast('Error de red', '#e74c3c');
+            }
+        }
+
+        function makeEditable(ing, sm, currentValue) {
+            const val = currentValue || '';
+            return `<input class="edit-precio" type="number" step="10" value="${val}" 
+                onblur="savePrecio('${ing.replace(/'/g, "\\'")}','${sm}',this)" 
+                onkeydown="if(event.key==='Enter') this.blur()" 
+                placeholder="—">`;
+        }
+
+        async function seedPrices() {
+            if (!confirm('Generar precios estimados para TODOS los ingredientes?')) return;
+            try {
+                const r = await fetch('/api/precios/seed', {method: 'POST'});
+                const d = await r.json();
+                showToast(`✅ ${d.seeded} precios generados`);
+                loadPrecios();
+            } catch(e) {
+                showToast('Error al generar precios', '#e74c3c');
+            }
+        }
 
         async function loadPrecios() {
             try {
@@ -108,29 +176,36 @@
                 }
 
                 const keys = Object.keys(grouped).sort();
+                const allIngs = Object.keys(ingMap).sort();
+                const displayKeys = keys.length > 0 ? keys : allIngs;
+
                 const tbody = document.getElementById('preciosBody');
                 let html = '';
 
-                keys.forEach(ing => {
-                    const p = grouped[ing];
+                displayKeys.forEach(ing => {
                     const info = ingMap[ing] || {};
-                    const costoKg = info.cost || 0;
+                    const costo = info.cost || 0;
                     const measure = info.measure || '';
+                    const p = grouped[ing] || {};
 
                     html += `<tr>
                         <td><strong>${ing}</strong> <span style="font-size:0.75em;color:var(--text-light);">${measure}</span></td>
-                        <td class="nuestro-costo">$${(costoKg).toFixed(0)}</td>
-                        <td class="${p['Olímpica'] ? (p['Olímpica'].precio < costoKg ? 'precio-bajo' : 'precio-alto') : ''}">${p['Olímpica'] ? '$' + p['Olímpica'].precio.toFixed(0) : '—'}</td>
-                        <td class="${p['Carulla'] ? (p['Carulla'].precio < costoKg ? 'precio-bajo' : 'precio-alto') : ''}">${p['Carulla'] ? '$' + p['Carulla'].precio.toFixed(0) : '—'}</td>
-                        <td class="${p['Éxito'] ? (p['Éxito'].precio < costoKg ? 'precio-bajo' : 'precio-alto') : ''}">${p['Éxito'] ? '$' + p['Éxito'].precio.toFixed(0) : '—'}</td>
-                        <td class="${p['Makro'] ? (p['Makro'].precio < costoKg ? 'precio-bajo' : 'precio-alto') : ''}">${p['Makro'] ? '$' + p['Makro'].precio.toFixed(0) : '—'}</td>
-                        <td class="${p['MercadoLibre'] ? (p['MercadoLibre'].precio < costoKg ? 'precio-bajo' : 'precio-alto') : ''}">${p['MercadoLibre'] ? '$' + p['MercadoLibre'].precio.toFixed(0) : '—'}</td>
-                    </tr>`;
+                        <td class="nuestro-costo">$${costo > 0 ? costo.toFixed(0) : '—'}</td>`;
+
+                    SUPERM.forEach(sm => {
+                        const entry = p[sm];
+                        const val = entry ? entry.precio : null;
+                        const cls = costo > 0 && val ? (val < costo ? 'precio-bajo' : 'precio-alto') : '';
+                        html += `<td class="${cls}" style="cursor:pointer;" 
+                            onclick="this.innerHTML=makeEditable('${ing.replace(/'/g, "\\'")}','${sm}',${val||''})">${val ? '$' + val.toFixed(0) : makeEditable(ing.replace(/'/g, "\\'"), sm, '')}</td>`;
+                    });
+
+                    html += `</tr>`;
                 });
 
-                tbody.innerHTML = keys.length ? html : '<tr><td colspan="7"><div style="text-align:center;padding:40px;color:var(--text-light);"><p>No hay precios de competencia. Ejecuta el scraper en Databricks.</p></div></td></tr>';
+                tbody.innerHTML = html;
             } catch(e) {
-                document.getElementById('preciosBody').innerHTML = '<tr><td colspan="7"><div style="text-align:center;padding:40px;color:#e74c3c;"><p>Error: ' + e.message + '</p></div></td></tr>';
+                document.getElementById('preciosBody').innerHTML = '<tr><td colspan="6"><div style="text-align:center;padding:40px;color:#e74c3c;"><p>Error: ' + e.message + '</p></div></td></tr>';
             }
         }
 

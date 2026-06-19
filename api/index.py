@@ -818,6 +818,63 @@ def get_precios():
     return jsonify({'precios': precios})
 
 
+@app.route('/api/precios', methods=['PUT'])
+@api_auth_required
+def upsert_precio():
+    data = request.get_json()
+    if not data or 'ingrediente' not in data or 'supermercado' not in data or 'precio' not in data:
+        return jsonify({'error': 'ingrediente, supermercado, precio requeridos'}), 400
+    exists = api_req('GET', T_PRECIOS, params={
+        'ingrediente': 'eq.' + data['ingrediente'],
+        'supermercado': 'eq.' + data['supermercado'],
+        'limit': 1
+    })
+    payload = {
+        'ingrediente': data['ingrediente'],
+        'supermercado': data['supermercado'],
+        'precio': float(data['precio']),
+        'producto': data.get('producto', data['ingrediente']),
+        'url': data.get('url', ''),
+        'fecha_scrape': datetime.utcnow().date().isoformat(),
+    }
+    if exists.status_code == 200 and len(exists.json()) > 0:
+        r = api_req('PATCH', T_PRECIOS, data=payload, params={
+            'ingrediente': 'eq.' + data['ingrediente'],
+            'supermercado': 'eq.' + data['supermercado'],
+        })
+    else:
+        r = api_req('POST', T_PRECIOS, data=payload)
+    return jsonify({'ok': r.status_code in (200, 201, 204)})
+
+
+@app.route('/api/precios/seed', methods=['POST'])
+@api_auth_required
+def seed_precios():
+    r = api_req('GET', 'ingredient_table', params={'select': 'name,cost,measure,supplier'})
+    ings = r.json() if r.status_code == 200 else []
+    supermercados = ['Olímpica', 'Carulla', 'Éxito', 'Makro']
+    import random
+    random.seed(42)
+    seeded = 0
+    for ing in ings:
+        if not ing.get('cost') or float(ing['cost']) <= 0:
+            continue
+        cost = float(ing['cost'])
+        for sm in supermercados:
+            mult = 0.7 + random.random() * 0.8
+            payload = {
+                'ingrediente': ing['name'],
+                'supermercado': sm,
+                'precio': round(cost * mult, 0),
+                'producto': ing['name'],
+                'url': '',
+                'fecha_scrape': datetime.utcnow().date().isoformat(),
+            }
+            api_req('POST', T_PRECIOS, data=payload)
+            seeded += 1
+    return jsonify({'seeded': seeded})
+
+
 @app.route('/api/recipes/<int:recipe_id>', methods=['PUT'])
 @api_auth_required
 def update_recipe(recipe_id):
