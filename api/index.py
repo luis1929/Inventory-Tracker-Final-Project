@@ -40,6 +40,7 @@ T_NUTRITION = 'nutrition_table'
 T_SALES = 'daily_sales'
 T_SALE_ITEMS = 'sale_items'
 T_PROJECTIONS = 'sales_projections'
+T_PRECIOS = 'precios_competencia'
 
 
 def get_api_config():
@@ -801,6 +802,20 @@ def bulk_update_projections():
         if r.status_code in (200, 204):
             updated += 1
     return jsonify({'updated': updated})
+
+
+@app.route('/precios')
+@api_auth_required
+def precios_page():
+    return render_template('precios.html', user=session['user'], is_admin=session.get('email', '').lower() in ADMIN_EMAILS)
+
+
+@app.route('/api/precios', methods=['GET'])
+@api_auth_required
+def get_precios():
+    r = api_req('GET', T_PRECIOS, params={'order': 'ingrediente.asc,supermercado.asc'})
+    precios = r.json() if r.status_code == 200 else []
+    return jsonify({'precios': precios})
 
 
 @app.route('/api/recipes/<int:recipe_id>', methods=['PUT'])
