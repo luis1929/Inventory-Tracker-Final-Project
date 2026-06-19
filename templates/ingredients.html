@@ -453,7 +453,6 @@
                     <td>
                         <div class="admin-actions">
                             <button class="btn-demote" style="font-size:0.8em;padding:4px 10px;" onclick="editIngredient('${ing.name}')">&#9998; Editar</button>
-                            <button class="btn-delete" style="font-size:0.8em;padding:4px 10px;" onclick="deleteIngredient('${ing.name}')">&#128465;</button>
                         </div>
                     </td>
                     <td style="text-align:center;"><input type="checkbox" class="cart-checkbox" data-name="${ing.name}" ${checked} onchange="toggleCartItem('${ing.name}', this)"></td>
@@ -492,22 +491,6 @@
         document.getElementById('searchInput').addEventListener('input', () => { currentPage = 1; renderInventory(); });
         document.getElementById('filterLowStock').addEventListener('change', () => { currentPage = 1; renderInventory(); });
 
-        async function deleteIngredient(name) {
-            if (!confirm('Eliminar "' + name + '" del inventario?')) return;
-            const res = await fetch('/api/ingredients/delete', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({name: name}),
-            });
-            const data = await res.json();
-            showMessage(data.error || data.message, res.ok ? 'success' : 'error');
-            if (res.ok) {
-                loadInventory();
-                const supRes = await fetch('/api/suppliers');
-                allSuppliers = await supRes.json();
-                renderSuppliers();
-            }
-        }
 
         function editIngredient(name) {
             const ing = allData.find(i => i.name === name);
