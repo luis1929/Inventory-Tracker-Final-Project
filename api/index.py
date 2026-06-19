@@ -42,6 +42,14 @@ T_SALE_ITEMS = 'sale_items'
 T_PROJECTIONS = 'sales_projections'
 T_PRECIOS = 'precios_competencia'
 
+# Fudness.co integration
+FUDNESS_API = 'https://fudness.co/wp-json'
+FUDNESS_STORE_API = f'{FUDNESS_API}/wc/store/v1'
+FUDNESS_WC_API = f'{FUDNESS_API}/wc/v3'
+T_FUD_PRODS = 'fudness_products'
+T_FUD_ORDERS = 'fudness_orders'
+T_FUD_SYNC = 'fudness_sync_log'
+
 
 def get_api_config():
     url = os.getenv('SUPABASE_URL')
@@ -873,6 +881,162 @@ def seed_precios():
             api_req('POST', T_PRECIOS, data=payload)
             seeded += 1
     return jsonify({'seeded': seeded})
+
+
+@app.route('/fudness')
+@login_required
+def fudness_page():
+    products = []
+    r = api_req('GET', T_FUD_PRODS, params={'select': '*', 'order': 'name.asc'})
+    if r.status_code == 200:
+        products = r.json()
+    return render_template('fudness.html', user=session['user'], is_admin=is_admin(session.get('email', '')),
+                           products=products)
+
+
+@app.route('/api/fudness/products', methods=['GET'])
+@api_auth_required
+def get_fudness_products():
+    r = api_req('GET', T_FUD_PRODS, params={'select': '*', 'order': 'name.asc'})
+    if r.status_code != 200:
+        return jsonify({'error': r.text}), r.status_code
+    return jsonify(r.json())
+
+
+@app.route('/api/fudness/sync/products', methods=['POST'])
+@api_auth_required
+def sync_fudness_products():
+    synced = 0
+    page = 1
+    while True:
+        r = requests.get(f'{FUDNESS_STORE_API}/products', params={'per_page': 100, 'page': page},
+                         headers={'User-Agent': 'KitchenMaster/1.0'})
+        if r.status_code != 200 or not r.json():
+            break
+        products = r.json()
+        for p in products:
+            slug = p['slug']
+            price = float(p['prices']['price']) if p['prices']['price'] else 0
+            regular_price = float(p['prices']['regular_price']) if p['prices']['regular_price'] else 0
+            tags = [t['name'] for t in p.get('tags', [])]
+            cats = [c['name'] for c in p.get('categories', [])]
+            api_req('POST', T_FUD_PRODS, data={
+                'slug': slug,
+                'name': p['name'],
+                'price': price,
+                'regular_price': regular_price,
+                'in_stock': p.get('is_in_stock', False),
+                'categories': '{' + ','.join(cats) + '}',
+                'tags': '{' + ','.join(tags) + '}',
+            }, extra_headers={'Prefer': 'resolution=merge-duplicates'})
+            synced += 1
+        page += 1
+    api_req('POST', T_FUD_SYNC, data={
+        'sync_type': 'products', 'status': 'success', 'items_count': synced
+    })
+    return jsonify({'message': f'Sincronizados {synced} productos'})
+
+
+@app.route('/api/fudness/sync/details', methods=['POST'])
+@api_auth_required
+def sync_fudness_details():
+    r = api_req('GET', T_FUD_PRODS, params={'select': 'slug'})
+    if r.status_code != 200:
+        return jsonify({'error': 'Error obteniendo productos'}), 500
+    slugs = [p['slug'] for p in r.json()]
+    updated = 0
+    for slug in slugs:
+        r2 = requests.get(f'{FUDNESS_API}/wp/v2/product',
+                          params={'slug': slug, '_fields': 'slug,content,excerpt'},
+                          headers={'User-Agent': 'KitchenMaster/1.0'})
+        if r2.status_code != 200 or not r2.json():
+            continue
+        wp = r2.json()[0]
+        content = wp.get('content', {}).get('rendered', '')
+        excerpt = wp.get('excerpt', {}).get('rendered', '')
+        api_req('PATCH', T_FUD_PRODS, data={
+            'description': content,
+            'variations': excerpt,
+        }, params={'slug': f'eq.{slug}'})
+        updated += 1
+    return jsonify({'message': f'Detalles actualizados de {updated} productos'})
+
+
+@app.route('/api/fudness/sync/orders', methods=['POST'])
+@api_auth_required
+def sync_fudness_orders():
+    data = request.get_json() or {}
+    consumer_key = data.get('consumer_key', '')
+    consumer_secret = data.get('consumer_secret', '')
+    if not consumer_key or not consumer_secret:
+        return jsonify({'error': 'Consumer Key y Consumer Secret requeridos'}), 400
+    auth = requests.auth.HTTPBasicAuth(consumer_key, consumer_secret)
+    synced = 0
+    page = 1
+    while True:
+        r = requests.get(f'{FUDNESS_WC_API}/orders', params={
+            'per_page': 100, 'page': page, 'order': 'desc', 'orderby': 'date_created'
+        }, auth=auth, headers={'User-Agent': 'KitchenMaster/1.0'})
+        if r.status_code != 200 or not r.json():
+            break
+        orders = r.json()
+        for o in orders:
+            items = [{
+                'product_id': i['product_id'],
+                'name': i['name'],
+                'quantity': i['quantity'],
+                'price': float(i['price']),
+                'total': float(i['total']),
+            } for i in o.get('line_items', [])]
+            shipping = o.get('shipping', {})
+            api_req('POST', T_FUD_ORDERS, data={
+                'id': o['id'],
+                'status': o.get('status', ''),
+                'currency': o.get('currency', 'COP'),
+                'date_created': o.get('date_created'),
+                'total': float(o.get('total', 0)),
+                'customer_name': f"{o.get('billing', {}).get('first_name', '')} {o.get('billing', {}).get('last_name', '')}",
+                'customer_email': o.get('billing', {}).get('email', ''),
+                'customer_phone': o.get('billing', {}).get('phone', ''),
+                'items': json.dumps(items),
+                'shipping_address': json.dumps(shipping),
+                'payment_method': o.get('payment_method_title', ''),
+                'payment_status': o.get('payment_status', ''),
+            }, extra_headers={'Prefer': 'resolution=merge-duplicates'})
+            synced += 1
+        page += 1
+    api_req('POST', T_FUD_SYNC, data={
+        'sync_type': 'orders', 'status': 'success' if synced > 0 else 'error',
+        'items_count': synced, 'message': f'{synced} pedidos sincronizados'
+    })
+    return jsonify({'message': f'Sincronizados {synced} pedidos'})
+
+
+@app.route('/api/fudness/orders', methods=['GET'])
+@api_auth_required
+def get_fudness_orders():
+    r = api_req('GET', T_FUD_ORDERS, params={'select': '*', 'order': 'date_created.desc'})
+    if r.status_code != 200:
+        return jsonify({'error': r.text}), r.status_code
+    return jsonify(r.json())
+
+
+@app.route('/api/fudness/orders/<int:order_id>', methods=['GET'])
+@api_auth_required
+def get_fudness_order(order_id):
+    r = api_req('GET', T_FUD_ORDERS, params={'id': f'eq.{order_id}', 'select': '*'})
+    if r.status_code != 200 or not r.json():
+        return jsonify({'error': 'Pedido no encontrado'}), 404
+    return jsonify(r.json()[0])
+
+
+@app.route('/api/fudness/sync/log', methods=['GET'])
+@api_auth_required
+def get_fudness_sync_log():
+    r = api_req('GET', T_FUD_SYNC, params={'select': '*', 'order': 'created_at.desc', 'limit': 20})
+    if r.status_code != 200:
+        return jsonify({'error': r.text}), r.status_code
+    return jsonify(r.json())
 
 
 @app.route('/dashboard')
@@ -1870,6 +2034,41 @@ def run_migration():
     ALTER TABLE menu_board ADD COLUMN IF NOT EXISTS fat_g DECIMAL(8,2) DEFAULT 0;
     ALTER TABLE menu_board ADD COLUMN IF NOT EXISTS fiber_g DECIMAL(8,2) DEFAULT 0;
     ALTER TABLE menu_board ADD COLUMN IF NOT EXISTS sodium_mg DECIMAL(8,2) DEFAULT 0;
+    CREATE TABLE IF NOT EXISTS fudness_products (
+        slug TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        price DECIMAL(12,2),
+        regular_price DECIMAL(12,2),
+        in_stock BOOLEAN DEFAULT false,
+        categories TEXT[] DEFAULT '{}',
+        tags TEXT[] DEFAULT '{}',
+        description TEXT DEFAULT '',
+        variations JSONB DEFAULT '[]',
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS fudness_orders (
+        id BIGINT PRIMARY KEY,
+        status TEXT DEFAULT '',
+        currency TEXT DEFAULT 'COP',
+        date_created TIMESTAMPTZ,
+        total DECIMAL(12,2) DEFAULT 0,
+        customer_name TEXT DEFAULT '',
+        customer_email TEXT DEFAULT '',
+        customer_phone TEXT DEFAULT '',
+        items JSONB DEFAULT '[]',
+        shipping_address JSONB DEFAULT '{}',
+        payment_method TEXT DEFAULT '',
+        payment_status TEXT DEFAULT '',
+        synced_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS fudness_sync_log (
+        id BIGSERIAL PRIMARY KEY,
+        sync_type TEXT NOT NULL,
+        status TEXT NOT NULL,
+        items_count INT DEFAULT 0,
+        message TEXT DEFAULT '',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+    );
     '''
 
     # Try management API
