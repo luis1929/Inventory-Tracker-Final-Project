@@ -13,21 +13,14 @@
         .nav-dropdown-menu a { display: block; padding: 8px 16px; color: #ddd; font-size: 0.85em; text-decoration: none; white-space: nowrap; }
         .nav-dropdown-menu a:hover { background: #2a2a4e; color: #fff; }
         .nav-dropdown:hover .nav-dropdown-menu { display: block; }
-        .fudness-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin-top: 16px; }
-        .fudness-card { background: #fff; border: 1px solid var(--cream-dark); border-radius: 10px; padding: 16px; transition: all 0.2s; }
-        .fudness-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); transform: translateY(-1px); }
-        .fudness-card h3 { margin: 0 0 6px; font-size: 1em; color: var(--text); }
-        .fudness-card .price { font-size: 1.2em; font-weight: 700; color: var(--primary); font-family: 'Playfair Display', serif; }
-        .fudness-card .tags { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; }
-        .fudness-card .tag { background: #f0e8dc; padding: 2px 8px; border-radius: 4px; font-size: 0.75em; color: var(--text); }
-        .fudness-card .stock-badge { display: inline-block; padding: 2px 10px; border-radius: 50px; font-size: 0.75em; font-weight: 600; }
-        .stock-yes { background: #d5f5e3; color: #1e8449; }
-        .stock-no { background: #fadbd8; color: #922b21; }
-        .variations-toggle { cursor: pointer; color: var(--primary); font-size: 0.85em; margin-top: 8px; display: inline-block; }
-        .variations-table { margin-top: 8px; font-size: 0.85em; width: 100%; border-collapse: collapse; display: none; }
-        .variations-table th { background: #1a1a2e; color: #fff; padding: 4px 8px; text-align: left; font-size: 0.75em; }
-        .variations-table td { padding: 4px 8px; border-bottom: 1px solid #eee; }
-        .variations-table tr:nth-child(even) { background: #f8f4ef; }
+        .table-wrapper { overflow-x: auto; }
+        .fudness-table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+        .fudness-table th { background: #1a1a2e; color: #fff; padding: 10px 12px; text-align: left; font-size: 0.85em; white-space: nowrap; }
+        .fudness-table td { padding: 8px 12px; border-bottom: 1px solid #eee; }
+        .fudness-table tr:hover td { background: #f8f4ef; }
+        .fudness-table .tag { background: #f0e8dc; padding: 2px 8px; border-radius: 4px; font-size: 0.75em; display: inline-block; margin: 1px; }
+        .stock-yes { background: #d5f5e3; color: #1e8449; padding: 2px 10px; border-radius: 50px; font-size: 0.8em; font-weight: 600; }
+        .stock-no { background: #fadbd8; color: #922b21; padding: 2px 10px; border-radius: 50px; font-size: 0.8em; font-weight: 600; }
         .sync-panel { background: #fff; border: 1px solid var(--cream-dark); border-radius: 10px; padding: 20px; margin-bottom: 20px; }
         .sync-panel h3 { margin: 0 0 12px; }
         .order-card { background: #fff; border: 1px solid var(--cream-dark); border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; }
@@ -36,11 +29,6 @@
         .order-card .order-status { padding: 2px 10px; border-radius: 50px; font-size: 0.75em; font-weight: 600; }
         .order-items { margin-top: 8px; padding-left: 16px; border-left: 2px solid var(--cream-dark); display: none; }
         .order-items li { margin: 4px 0; font-size: 0.9em; }
-        .tab-bar { display: flex; gap: 4px; margin-bottom: 20px; }
-        .tab-btn { padding: 8px 20px; border: 1px solid var(--cream-dark); border-radius: 6px; background: var(--cream); cursor: pointer; font-weight: 600; font-size: 0.9em; }
-        .tab-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
         .fudness-config { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: end; }
         .fudness-config input { padding: 10px 14px; border: 2px solid var(--cream-dark); border-radius: var(--radius-sm); font-size: 0.95em; width: 100%; box-sizing: border-box; }
     </style>
@@ -71,7 +59,7 @@
                 </li>
                 <li><a href="/dashboard">&#128202; <span>Dashboard</span></a></li>
                 <li><a href="/precios">&#128178; <span>Precios</span></a></li>
-                <li><a href="/fudness" class="active">&#127758; <span>Fudness</span></a></li>
+                <li><a href="/fudness" class="active">&#127758; <span>Fudness Productos</span></a></li>
                 {% if is_admin %}<li><a href="/admin">&#9881; <span>Admin</span></a></li>{% endif %}
             </ul>
             <div class="nav-user">
@@ -81,11 +69,11 @@
         </div>
     </nav>
 
-    <section class="hero" style="padding:40px 0;">
+    <section class="hero" style="padding:20px 0;">
         <div class="hero-content">
-            <div class="hero-badge">&#127758; Integración Fudness</div>
-            <h1><span>Fudness</span> — Sincronización de Pedidos</h1>
-            <p>Conecta tu tienda WooCommerce de Fudness.co para sincronizar productos, pedidos y calcular necesidades de producción.</p>
+            <div class="hero-badge">&#127758; Catálogo Fudness</div>
+            <h1><span>Productos</span> Fudness</h1>
+            <p>Productos sincronizados desde Fudness.co</p>
         </div>
     </section>
 
@@ -93,56 +81,27 @@
         <a href="/" class="back-link">&larr; Volver al inicio</a>
 
         <div class="sync-panel">
-            <h3>&#128260; Sincronización</h3>
-            <div class="tab-bar">
-                <button class="tab-btn active" onclick="switchTab('catalog', this)">&#128230; Catálogo</button>
-                <button class="tab-btn" onclick="switchTab('orders', this)">&#128230; Pedidos</button>
-                <button class="tab-btn" onclick="switchTab('config', this)">&#9881; Configuración</button>
+            <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
+                <button class="btn" onclick="syncProducts()">&#128260; Sincronizar</button>
+                <button class="btn" onclick="syncDetails()">&#128203; Detalles</button>
+                <input type="text" id="searchFudness" placeholder="&#128269; Buscar producto..." style="flex:1;min-width:200px;padding:8px 14px;border:2px solid var(--cream-dark);border-radius:var(--radius-sm);font-size:0.9em;">
+                <span id="catalogStats" style="font-size:0.9em;color:var(--text-light);"></span>
             </div>
-
-            <div id="tab-catalog" class="tab-content active">
-                <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-                    <button class="btn" onclick="syncProducts()">&#128260; Sincronizar Productos</button>
-                    <button class="btn" onclick="syncDetails()">&#128203; Sincronizar Detalles</button>
-                    <button class="btn" onclick="syncProductsFull()">&#128259; Sincronizar Todo</button>
-                    <input type="text" id="searchFudness" placeholder="&#128269; Buscar producto..." style="flex:1;min-width:200px;padding:8px 14px;border:2px solid var(--cream-dark);border-radius:var(--radius-sm);font-size:0.9em;">
-                </div>
-                <div id="catalogStats" style="font-size:0.9em;color:var(--text-light);margin-bottom:8px;"></div>
-                <div id="fudnessCatalog" class="fudness-grid"></div>
+            <div class="table-wrapper">
+                <table class="fudness-table" id="fudnessTable">
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th>Precio</th>
+                            <th>Stock</th>
+                            <th>Categorías</th>
+                            <th>Tags</th>
+                            <th>Descripción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="fudnessCatalog"></tbody>
+                </table>
             </div>
-
-            <div id="tab-orders" class="tab-content">
-                <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
-                    <button class="btn" onclick="syncOrders()">&#128260; Sincronizar Pedidos</button>
-                    <span id="orderConfigAlert" style="font-size:0.85em;color:#e67e22;">&#9888; Configura Consumer Key y Secret primero</span>
-                </div>
-                <div id="fudnessOrders"></div>
-            </div>
-
-            <div id="tab-config" class="tab-content">
-                <h4 style="margin:0 0 12px;">&#128273; Credenciales WooCommerce</h4>
-                <p style="font-size:0.85em;color:var(--text-light);margin-bottom:12px;">
-                    Obtén las credenciales en Fudness.co: WooCommerce > Settings > Advanced > REST API.
-                    Se guardan en tu sesión (no se almacenan en el servidor).
-                </p>
-                <div class="fudness-config">
-                    <div>
-                        <label style="font-size:0.85em;font-weight:600;">Consumer Key</label>
-                        <input type="text" id="fudnessConsumerKey" placeholder="ck_..." style="margin-top:4px;">
-                    </div>
-                    <div>
-                        <label style="font-size:0.85em;font-weight:600;">Consumer Secret</label>
-                        <input type="text" id="fudnessConsumerSecret" placeholder="cs_..." style="margin-top:4px;">
-                    </div>
-                </div>
-                <button class="btn" onclick="saveConfig()" style="margin-top:12px;">&#128190; Guardar Credenciales</button>
-                <div id="configMessage" class="message" style="margin-top:8px;"></div>
-            </div>
-        </div>
-
-        <div class="sync-panel">
-            <h3>&#128203; Historial de Sincronización</h3>
-            <div id="syncLog"></div>
         </div>
     </div>
 
@@ -196,9 +155,8 @@
             btn.textContent = 'Sincronizando...';
             const res = await fetch('/api/fudness/sync/products', { method: 'POST' });
             const data = await res.json();
-            showMessage(data.message || data.error, res.ok ? 'success' : 'error');
             btn.disabled = false;
-            btn.textContent = '&#128260; Sincronizar Productos';
+            btn.textContent = '&#128260; Sincronizar';
             if (res.ok) loadCatalog();
         }
 
@@ -208,25 +166,8 @@
             btn.textContent = 'Sincronizando...';
             const res = await fetch('/api/fudness/sync/details', { method: 'POST' });
             const data = await res.json();
-            showMessage(data.message || data.error, res.ok ? 'success' : 'error');
             btn.disabled = false;
-            btn.textContent = '&#128203; Sincronizar Detalles';
-            if (res.ok) loadCatalog();
-        }
-
-        async function syncProductsFull() {
-            const btn = event.target;
-            btn.disabled = true;
-            btn.textContent = 'Sincronizando...';
-            let res = await fetch('/api/fudness/sync/products', { method: 'POST' });
-            let data = await res.json();
-            if (res.ok) {
-                res = await fetch('/api/fudness/sync/details', { method: 'POST' });
-                data = await res.json();
-            }
-            showMessage('Sincronización completa', res.ok ? 'success' : 'error');
-            btn.disabled = false;
-            btn.textContent = '&#128259; Sincronizar Todo';
+            btn.textContent = '&#128203; Detalles';
             if (res.ok) loadCatalog();
         }
 
@@ -239,159 +180,39 @@
 
         function renderCatalog() {
             const search = (document.getElementById('searchFudness').value || '').toLowerCase();
-            const div = document.getElementById('fudnessCatalog');
+            const tbody = document.getElementById('fudnessCatalog');
             const stats = document.getElementById('catalogStats');
 
             let data = allProducts.filter(p => p.name.toLowerCase().includes(search));
-            stats.textContent = `Mostrando ${data.length} de ${allProducts.length} productos`;
+            stats.textContent = `${data.length} de ${allProducts.length} productos`;
 
             if (!data.length) {
-                div.innerHTML = '<p style="text-align:center;color:var(--text-light);padding:40px;">&#128270; No hay productos. Sincroniza primero.</p>';
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-light);">&#128270; No hay productos. Sincroniza primero.</td></tr>';
                 return;
             }
 
             let html = '';
             data.forEach(p => {
-                const tags = (p.tags || '').replace(/[{}"]/g, '').split(',').filter(Boolean);
-                const cats = (p.categories || '').replace(/[{}"]/g, '').split(',').filter(Boolean);
+                const tags = (p.tags || '').replace(/[{}"]/g, '').split(',').filter(Boolean).join(', ');
+                const cats = (p.categories || '').replace(/[{}"]/g, '').split(',').filter(Boolean).join(', ');
                 const inStock = p.in_stock;
-                let varsHtml = '';
-                if (p.variations && p.variations.length > 0) {
-                    let vars = p.variations;
-                    if (typeof vars === 'string') {
-                        try { vars = JSON.parse(vars); } catch(e) { vars = []; }
-                    }
-                    if (vars.length > 0) {
-                        varsHtml = `<a class="variations-toggle" onclick="toggleVars('${p.slug}')">&#128200; Ver variaciones (${vars.length})</a>
-                        <table class="variations-table" id="vars-${p.slug}">
-                            <thead><tr><th>Tipo</th><th>KCAL</th><th>PROT</th><th>CARB</th><th>GRAS</th><th>Componentes</th></tr></thead>
-                            <tbody>`;
-                        vars.forEach(v => {
-                            const comps = (v.components || []).map(c => `${c.name} (${c.weight_g}g)`).join(', ');
-                            varsHtml += `<tr><td>${v.type || '?'}</td><td>${v.kcal || '-'}</td><td>${v.protein || '-'}</td><td>${v.carbs || '-'}</td><td>${v.fat || '-'}</td><td style="font-size:0.75em;">${comps}</td></tr>`;
-                        });
-                        varsHtml += `</tbody></table>`;
-                    }
-                }
-
-                html += `<div class="fudness-card">
-                    <div style="display:flex;justify-content:space-between;align-items:start;">
-                        <h3>${p.name}</h3>
-                        <span class="stock-badge ${inStock ? 'stock-yes' : 'stock-no'}">${inStock ? 'En stock' : 'Agotado'}</span>
-                    </div>
-                    <div class="price">$${parseFloat(p.price || 0).toLocaleString('es-CO')}</div>
-                    <div class="tags">
-                        ${tags.map(t => `<span class="tag">${t}</span>`).join('')}
-                        ${cats.map(c => `<span class="tag" style="background:#d4a35333;">${c}</span>`).join('')}
-                    </div>
-                    ${varsHtml}
-                </div>`;
+                const price = parseFloat(p.price || 0).toLocaleString('es-CO');
+                const desc = (p.description || '').replace(/<[^>]*>/g, '').substring(0, 120);
+                html += `<tr>
+                    <td><strong>${p.name}</strong></td>
+                    <td style="font-weight:700;color:var(--primary);">$${price}</td>
+                    <td><span class="${inStock ? 'stock-yes' : 'stock-no'}">${inStock ? 'En stock' : 'Agotado'}</span></td>
+                    <td style="font-size:0.85em;">${cats || '-'}</td>
+                    <td style="font-size:0.85em;">${tags || '-'}</td>
+                    <td style="font-size:0.85em;color:var(--text-light);max-width:250px;">${desc || '-'}</td>
+                </tr>`;
             });
-            div.innerHTML = html;
-        }
-
-        function toggleVars(slug) {
-            const tbl = document.getElementById('vars-' + slug);
-            tbl.style.display = tbl.style.display === 'none' || tbl.style.display === '' ? 'table' : 'none';
+            tbody.innerHTML = html;
         }
 
         document.getElementById('searchFudness').addEventListener('input', renderCatalog);
 
-        async function syncOrders() {
-            if (!config.consumer_key) {
-                showMessage('Configura Consumer Key y Secret primero', 'error');
-                return;
-            }
-            const btn = event.target;
-            btn.disabled = true;
-            btn.textContent = 'Sincronizando...';
-            const res = await fetch('/api/fudness/sync/orders', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(config)
-            });
-            const data = await res.json();
-            showMessage(data.message || data.error, res.ok ? 'success' : 'error');
-            btn.disabled = false;
-            btn.textContent = '&#128260; Sincronizar Pedidos';
-            if (res.ok) loadOrders();
-        }
-
-        async function loadOrders() {
-            const div = document.getElementById('fudnessOrders');
-            const res = await fetch('/api/fudness/orders');
-            if (!res.ok) {
-                div.innerHTML = '<p style="text-align:center;color:var(--text-light);padding:20px;">&#9888; Error cargando pedidos</p>';
-                return;
-            }
-            const orders = await res.json();
-            if (!orders.length) {
-                div.innerHTML = '<p style="text-align:center;color:var(--text-light);padding:20px;">&#128230; No hay pedidos sincronizados.</p>';
-                return;
-            }
-            let html = `<p style="font-size:0.9em;color:var(--text-light);margin-bottom:8px;">Total: ${orders.length} pedidos</p>`;
-            orders.forEach(o => {
-                let items = o.items;
-                if (typeof items === 'string') {
-                    try { items = JSON.parse(items); } catch(e) { items = []; }
-                }
-                const date = o.date_created ? o.date_created.slice(0, 10) : '?';
-                const statusClass = o.status === 'completed' ? 'stock-yes' : (o.status === 'processing' ? 'tag' : 'stock-no');
-                html += `<div class="order-card">
-                    <div class="order-header">
-                        <div>
-                            <span class="order-id">#${o.id}</span>
-                            <span style="font-size:0.85em;color:var(--text-light);margin-left:8px;">${date}</span>
-                            <span class="order-status ${statusClass}" style="margin-left:8px;">${o.status}</span>
-                        </div>
-                        <div>
-                            <span style="font-weight:700;color:var(--primary);">$${parseFloat(o.total || 0).toLocaleString('es-CO')}</span>
-                            <span style="font-size:0.85em;color:var(--text-light);margin-left:8px;">${o.customer_name || ''}</span>
-                        </div>
-                    </div>
-                    <a class="variations-toggle" onclick="toggleOrderItems(${o.id})">&#128200; Ver items (${items.length})</a>
-                    <div class="order-items" id="order-items-${o.id}">
-                        <ul>${items.map(i => `<li>${i.name} x${i.quantity} — $${parseFloat(i.total || 0).toLocaleString('es-CO')}</li>`).join('')}</ul>
-                    </div>
-                </div>`;
-            });
-            div.innerHTML = html;
-        }
-
-        function toggleOrderItems(id) {
-            const div = document.getElementById('order-items-' + id);
-            div.style.display = div.style.display === 'none' || div.style.display === '' ? 'block' : 'none';
-        }
-
-        async function loadSyncLog() {
-            const div = document.getElementById('syncLog');
-            const res = await fetch('/api/fudness/sync/log');
-            if (!res.ok) return;
-            const log = await res.json();
-            if (!log.length) {
-                div.innerHTML = '<p style="color:var(--text-light);font-size:0.9em;">No hay actividad de sincronización aún.</p>';
-                return;
-            }
-            let html = '<div style="font-size:0.9em;">';
-            log.forEach(l => {
-                const icon = l.status === 'success' ? '&#9989;' : '&#10060;';
-                const date = l.created_at ? new Date(l.created_at).toLocaleString('es-CO') : '?';
-                html += `<div style="padding:6px 0;border-bottom:1px solid var(--cream-dark);">
-                    ${icon} <strong>${l.sync_type}</strong> — ${l.items_count} items — ${date}
-                    ${l.message ? `<span style="color:var(--text-light);font-size:0.85em;">(${l.message})</span>` : ''}
-                </div>`;
-            });
-            html += '</div>';
-            div.innerHTML = html;
-        }
-
-        function logout() {
-            fetch('/api/auth/logout', { method: 'POST' }).then(() => window.location.href = '/login');
-        }
-
-        loadConfig();
         loadCatalog();
-        loadSyncLog();
     </script>
 </body>
 </html>
