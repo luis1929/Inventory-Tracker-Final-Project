@@ -559,6 +559,49 @@
         }
         .footer span { color: var(--secondary); }
 
+        /* ── Data Table ── */
+        .data-section { overflow-x: auto; }
+        .data-table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+        .data-table th {
+            background: var(--dark);
+            color: var(--cream);
+            padding: 12px 14px;
+            text-align: left;
+            font-size: 0.8em;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .data-table td { padding: 10px 14px; border-bottom: 1px solid var(--cream-dark); }
+        .data-table tr:hover td { background: rgba(212, 163, 83, 0.08); }
+        .data-table .price { font-weight: 700; color: var(--primary); white-space: nowrap; }
+        .data-table .status-active { color: #27ae60; font-weight: 600; font-size: 0.8em; }
+        .data-filter {
+            display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; align-items: center;
+        }
+        .data-filter input, .data-filter select {
+            padding: 10px 14px; border: 2px solid var(--cream-dark); border-radius: var(--radius-sm);
+            font-size: 0.9em; font-family: 'Inter', sans-serif; background: var(--white);
+            transition: border-color 0.3s; color: var(--text);
+        }
+        .data-filter input:focus, .data-filter select:focus {
+            outline: none; border-color: var(--secondary);
+        }
+        .data-filter input { flex: 1; min-width: 200px; }
+        .data-stats {
+            font-size: 0.85em; color: var(--text-light); margin-top: 12px; text-align: center;
+        }
+        .data-loading { text-align: center; padding: 60px 20px; color: var(--text-light); }
+        .data-loading i { font-size: 2em; margin-bottom: 12px; display: block; }
+        .data-error {
+            text-align: center; padding: 40px; color: var(--text-light); background: var(--white);
+            border-radius: var(--radius); border: 1px solid var(--cream-dark);
+        }
+        .data-error a { color: var(--primary); font-weight: 600; }
+        .category-tag {
+            display: inline-block; background: var(--cream-dark); padding: 2px 10px;
+            border-radius: 50px; font-size: 0.75em; font-weight: 500;
+        }
+
         /* ── Responsive ── */
         @media (max-width: 1024px) {
             .hero-inner { grid-template-columns: 1fr; gap: 40px; text-align: center; }
@@ -593,6 +636,7 @@
                 <i class="fas fa-robot"></i> AI <span>Compras</span> Kitchen
             </a>
             <ul class="nav-links">
+                <li><a href="#datos"><i class="fas fa-table"></i> <span>Datos</span></a></li>
                 <li><a href="#como-funciona"><span>Cómo funciona</span></a></li>
                 <li><a href="#planes"><span>Planes</span></a></li>
                 <li><a href="#cobertura"><span>Cobertura</span></a></li>
@@ -683,6 +727,52 @@
                     <p>Define la frecuencia de entrega y recibe tus insumos justo cuando los necesitas.</p>
                 </div>
             </div>
+        </div>
+    </section>
+
+    <!-- Datos -->
+    <section id="datos" style="background: var(--white);">
+        <div class="section-inner text-center">
+            <div class="section-tag mx-auto" style="justify-content:center;">
+                <i class="fas fa-database"></i> Datos del men&uacute;
+            </div>
+            <h2 class="section-title">Explora los <span>datos</span> del men&uacute;</h2>
+            <p class="section-sub mx-auto">
+                Precios corregidos y stock actualizado de todos los platos registrados en el sistema.
+            </p>
+            <div class="data-filter">
+                <input type="text" id="dataSearch" placeholder="&#128269; Buscar plato...">
+                <select id="dataCategory">
+                    <option value="">Todas las categor&iacute;as</option>
+                </select>
+                <span id="dataCount" style="font-size:0.85em;color:var(--text-light);"></span>
+            </div>
+            <div class="data-section">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Plato</th>
+                            <th>Categor&iacute;a</th>
+                            <th>Costo total</th>
+                            <th>Precio venta</th>
+                            <th>Peso (g)</th>
+                            <th>Calor&iacute;as</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dataBody">
+                        <tr>
+                            <td colspan="7">
+                                <div class="data-loading">
+                                    <i class="fas fa-spinner fa-pulse"></i>
+                                    Cargando datos...
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="data-stats" id="dataStats"></div>
         </div>
     </section>
 
@@ -824,8 +914,95 @@
         AI Compras Kitchen &mdash; Hecho con <span>&#10084;</span> para cocineros inteligentes
     </div>
 
-    <!-- Smooth scroll -->
     <script>
+        // Data fetching
+        let allData = [];
+        const CATEGORY_MAP = {
+            'Lunes': 'Lunes', 'Martes': 'Martes', 'Miercoles': 'Mi\u00e9rcoles',
+            'Jueves': 'Jueves', 'Viernes': 'Viernes', 'Sabado': 'S\u00e1bado',
+            'General': 'General'
+        };
+
+        async function loadData() {
+            const body = document.getElementById('dataBody');
+            try {
+                const res = await fetch('/api/menu');
+                if (!res.ok) {
+                    body.innerHTML = `<tr><td colspan="7">
+                        <div class="data-error">
+                            <i class="fas fa-lock" style="font-size:2em;display:block;margin-bottom:12px;"></i>
+                            <p>Debes <a href="/login">iniciar sesi&oacute;n</a> para ver los datos.</p>
+                        </div>
+                    </td></tr>`;
+                    return;
+                }
+                allData = await res.json();
+                renderData();
+            } catch {
+                body.innerHTML = `<tr><td colspan="7">
+                    <div class="data-error">
+                        <i class="fas fa-exclamation-triangle" style="font-size:2em;display:block;margin-bottom:12px;"></i>
+                        <p>Error al cargar los datos. <a href="/login">Inicia sesi&oacute;n</a> e intenta de nuevo.</p>
+                    </div>
+                </td></tr>`;
+            }
+        }
+
+        function renderData() {
+            const search = (document.getElementById('dataSearch').value || '').toLowerCase();
+            const cat = document.getElementById('dataCategory').value;
+            const body = document.getElementById('dataBody');
+            const stats = document.getElementById('dataStats');
+
+            let filtered = allData.filter(d => {
+                const matchSearch = d.dish_name.toLowerCase().includes(search);
+                const matchCat = !cat || d.category === cat;
+                return matchSearch && matchCat;
+            });
+
+            stats.textContent = `${filtered.length} de ${allData.length} platos`;
+
+            if (!filtered.length) {
+                body.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-light);">
+                    <i class="fas fa-search" style="font-size:1.5em;display:block;margin-bottom:8px;"></i>
+                    No se encontraron platos
+                </td></tr>`;
+                return;
+            }
+
+            let html = '';
+            filtered.forEach(d => {
+                const cost = parseFloat(d.cost_total || 0).toLocaleString('es-CO', {minimumFractionDigits: 0});
+                const price = parseFloat(d.sale_price || 0).toLocaleString('es-CO', {minimumFractionDigits: 0});
+                html += `<tr>
+                    <td><strong>${d.dish_name}</strong></td>
+                    <td><span class="category-tag">${d.category || '-'}</span></td>
+                    <td class="price">$${cost}</td>
+                    <td class="price">$${price}</td>
+                    <td>${d.portion_weight_g || '-'}</td>
+                    <td>${d.calories ? Math.round(d.calories) : '-'}</td>
+                    <td><span class="status-active">${d.status === 'activo' ? 'Activo' : d.status || '-'}</span></td>
+                </tr>`;
+            });
+            body.innerHTML = html;
+        }
+
+        function initFilters() {
+            const catEl = document.getElementById('dataCategory');
+            Object.values(CATEGORY_MAP).forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c;
+                opt.textContent = c;
+                catEl.appendChild(opt);
+            });
+            document.getElementById('dataSearch').addEventListener('input', renderData);
+            document.getElementById('dataCategory').addEventListener('change', renderData);
+        }
+
+        initFilters();
+        loadData();
+
+        // Smooth scroll
         document.querySelectorAll('a[href^="#"]').forEach(a => {
             a.addEventListener('click', e => {
                 e.preventDefault();
