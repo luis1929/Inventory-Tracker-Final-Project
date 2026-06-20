@@ -290,7 +290,8 @@ def auth_update_password():
 
 @app.route('/')
 def index():
-    return render_template('ai_compras_kitchen.html')
+    _ensure_demo_session()
+    return render_template('index.html', user=session['user'])
 
 
 @app.route('/ai-compras-kitchen')
