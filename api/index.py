@@ -1833,6 +1833,27 @@ def delete_menu_item(item_id):
 
 # ── Menu Recipe (Ingredient-Level Costing) Routes ──
 
+ALLOWED_TABLES = {
+    'fudness_products': T_FUD_PRODS,
+    'ingredient_table': T_INGS,
+    'menu_board': T_MENU,
+    'menu_recipe_items': T_MENU_RECIPE,
+    'nutrition_table': T_NUTRITION,
+}
+
+
+@app.route('/api/table-data/<table_name>', methods=['GET'])
+@api_auth_required
+def get_table_data(table_name):
+    supabase_table = ALLOWED_TABLES.get(table_name)
+    if not supabase_table:
+        return jsonify({'error': 'Tabla no permitida'}), 403
+    r = api_req('GET', supabase_table, params={'order': 'id.asc'})
+    if r.status_code != 200:
+        return jsonify({'error': r.text}), r.status_code
+    return jsonify(r.json())
+
+
 @app.route('/api/recipe-items', methods=['GET'])
 @api_auth_required
 def get_all_recipe_items():
