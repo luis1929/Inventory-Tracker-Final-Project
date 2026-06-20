@@ -1169,11 +1169,12 @@
                 html += '<tr>' + cols.map(c => {
                     let val = row[c];
                     if (val == null) return '<td>-</td>';
-                    const s = String(val);
-                    if (!isNaN(val) && val !== true && val !== false && s.includes('.')) {
-                        val = parseFloat(val).toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                    if (Array.isArray(val)) return '<td>' + val.join(', ') + '</td>';
+                    if (typeof val === 'object') return '<td>' + JSON.stringify(val) + '</td>';
+                    if (typeof val === 'number') {
+                        return '<td class="price">' + Number(val).toLocaleString('es-CO') + '</td>';
                     }
-                    return '<td>' + (typeof val === 'number' ? '<span class="price">' + Number(val).toLocaleString('es-CO') + '</span>' : val) + '</td>';
+                    return '<td>' + String(val).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</td>';
                 }).join('') + '</tr>';
             });
             body.innerHTML = html;

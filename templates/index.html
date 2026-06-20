@@ -265,10 +265,12 @@
                 html += '<tr>' + cols.map(c => {
                     let val = row[c];
                     if (val == null) return '<td>-</td>';
+                    if (Array.isArray(val)) return '<td>' + val.join(', ') + '</td>';
+                    if (typeof val === 'object') return '<td>' + JSON.stringify(val) + '</td>';
                     if (typeof val === 'number') {
                         return '<td class="price">' + Number(val).toLocaleString('es-CO') + '</td>';
                     }
-                    return '<td>' + String(val) + '</td>';
+                    return '<td>' + String(val).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</td>';
                 }).join('') + '</tr>';
             });
             body.innerHTML = html;
