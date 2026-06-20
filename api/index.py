@@ -894,6 +894,17 @@ def fudness_page():
                            products=products)
 
 
+@app.route('/menu-board')
+@login_required
+def menu_board_page():
+    items = []
+    r = api_req('GET', T_MENU, params={'select': '*', 'order': 'category.asc,sort_order.asc'})
+    if r.status_code == 200:
+        items = r.json()
+    return render_template('menu_board.html', user=session['user'], is_admin=is_admin(session.get('email', '')),
+                           items=items)
+
+
 @app.route('/api/fudness/products', methods=['GET'])
 @api_auth_required
 def get_fudness_products():

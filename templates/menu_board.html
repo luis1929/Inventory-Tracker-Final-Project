@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menu Board - KitchenMaster</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <style>
+        .table-wrapper { overflow-x: auto; }
+        .mb-table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+        .mb-table th { background: #1a1a2e; color: #fff; padding: 10px 12px; text-align: left; font-size: 0.85em; white-space: nowrap; }
+        .mb-table td { padding: 8px 12px; border-bottom: 1px solid #eee; }
+        .mb-table tr:hover td { background: #f8f4ef; }
+        .status-activo { background: #d5f5e3; color: #1e8449; padding: 2px 10px; border-radius: 50px; font-size: 0.8em; font-weight: 600; }
+        .status-inactivo { background: #fadbd8; color: #922b21; padding: 2px 10px; border-radius: 50px; font-size: 0.8em; font-weight: 600; }
+        .category-header { background: #f0e8dc !important; font-weight: 700; }
+        .category-header td { padding: 6px 12px; }
+        .search-box { padding: 8px 14px; border: 2px solid var(--cream-dark); border-radius: var(--radius-sm); font-size: 0.9em; width: 100%; max-width: 400px; box-sizing: border-box; }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="nav-inner">
+            <a href="/" class="nav-brand">&#127860; <span>K</span>itchen<span>M</span>aster</a>
+            <ul class="nav-links">
+                <li><a href="/">&#127968; <span>Inicio</span></a></li>
+                <li class="nav-dropdown">
+                    <a href="#">&#128722; <span>Compras</span> &#9660;</a>
+                    <ul class="nav-dropdown-menu">
+                        <li><a href="/shopping-list?mode=stock">Comp x Stock</a></li>
+                        <li><a href="/shopping-list?mode=sales">Comp x Proy Venta</a></li>
+                    </ul>
+                </li>
+                <li><a href="/dashboard">&#128202; <span>Dashboard</span></a></li>
+                <li><a href="/precios">&#128178; <span>Precios</span></a></li>
+                <li><a href="/fudness">&#127758; <span>Fudness Productos</span></a></li>
+                <li><a href="/menu-board" class="active">&#128220; <span>Menu Board</span></a></li>
+                {% if is_admin %}<li><a href="/admin">&#9881; <span>Admin</span></a></li>{% endif %}
+            </ul>
+            <div class="nav-user">
+                <span class="user-email">{{ user.email }}</span>
+                <button class="logout-btn" onclick="logout()">Salir</button>
+            </div>
+        </div>
+    </nav>
+
+    <section class="hero" style="padding:20px 0;">
+        <div class="hero-content">
+            <div class="hero-badge">&#128220; Menu Board</div>
+            <h1><span>Planes</span> del Menu Board</h1>
+            <p>{{ items|length }} platillos registrados</p>
+        </div>
+    </section>
+
+    <div class="container">
+        <a href="/" class="back-link">&larr; Volver al inicio</a>
+
+        <div style="margin-bottom:16px;">
+            <input type="text" id="searchMenuBoard" class="search-box" placeholder="&#128269; Buscar platillo...">
+            <span id="mbStats" style="margin-left:12px;font-size:0.9em;color:var(--text-light);"></span>
+        </div>
+
+        <div class="table-wrapper">
+            <table class="mb-table" id="mbTable">
+                <thead>
+                    <tr>
+                        <th>Categoria</th>
+                        <th>Platillo</th>
+                        <th>Costo Total</th>
+                        <th>Precio Venta</th>
+                        <th>Peso (g)</th>
+                        <th>Calorias</th>
+                        <th>Proteina (g)</th>
+                        <th>Carbs (g)</th>
+                        <th>Grasa (g)</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody id="mbBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="footer">
+        Restaurant Inventory Tracker &mdash; Hecho con <span>&#10084;</span> para cocineros
+    </div>
+
+    <script>
+        const allItems = {{ items | tojson | safe }};
+
+        function render() {
+            const search = (document.getElementById('searchMenuBoard').value || '').toLowerCase();
+            const tbody = document.getElementById('mbBody');
+            const stats = document.getElementById('mbStats');
+
+            let data = allItems.filter(i => i.dish_name.toLowerCase().includes(search));
+            stats.textContent = `${data.length} de ${allItems.length} platillos`;
+
+            let html = '';
+            let lastCat = '';
+            data.forEach(i => {
+                if (i.category !== lastCat) {
+                    html += `<tr class="category-header"><td colspan="10">&#128193; ${i.category}</td></tr>`;
+                    lastCat = i.category;
+                }
+                html += `<tr>
+                    <td style="font-size:0.85em;color:var(--text-light);">${i.category}</td>
+                    <td><strong>${i.dish_name}</strong></td>
+                    <td style="font-weight:600;">$${parseFloat(i.cost_total || 0).toLocaleString('es-CO')}</td>
+                    <td style="font-weight:700;color:var(--primary);">$${parseFloat(i.sale_price || 0).toLocaleString('es-CO')}</td>
+                    <td>${i.portion_weight_g || '-'}</td>
+                    <td>${i.calories || '-'}</td>
+                    <td>${i.protein_g || '-'}</td>
+                    <td>${i.carbs_g || '-'}</td>
+                    <td>${i.fat_g || '-'}</td>
+                    <td><span class="status-${i.status}">${i.status}</span></td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        }
+
+        document.getElementById('searchMenuBoard').addEventListener('input', render);
+        render();
+    </script>
+</body>
+</html>
