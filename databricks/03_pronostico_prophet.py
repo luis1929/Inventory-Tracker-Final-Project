@@ -6,6 +6,10 @@
 
 # COMMAND ----------
 
+# MAGIC %pip install prophet
+
+# COMMAND ----------
+
 import requests
 import pandas as pd
 from prophet import Prophet
