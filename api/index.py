@@ -1833,6 +1833,16 @@ def delete_menu_item(item_id):
 
 # ── Menu Recipe (Ingredient-Level Costing) Routes ──
 
+@app.route('/api/recipe-items', methods=['GET'])
+@api_auth_required
+def get_all_recipe_items():
+    r = api_req('GET', T_MENU_RECIPE, params={'order': 'dish_id.asc,ingredient_name.asc'})
+    if r.status_code != 200:
+        return jsonify({'error': r.text}), r.status_code
+    items = r.json()
+    return jsonify({'items': items, 'total': len(items)})
+
+
 @app.route('/api/menu/<int:dish_id>/recipe', methods=['GET'])
 @api_auth_required
 def get_menu_recipe(dish_id):

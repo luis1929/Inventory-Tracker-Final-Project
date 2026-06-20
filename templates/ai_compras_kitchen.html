@@ -734,32 +734,26 @@
     <section id="datos" style="background: var(--white);">
         <div class="section-inner text-center">
             <div class="section-tag mx-auto" style="justify-content:center;">
-                <i class="fas fa-database"></i> Datos del men&uacute;
+                <i class="fas fa-database"></i> <span id="dataSectionTitle">Datos del men&uacute;</span>
             </div>
-            <h2 class="section-title">Explora los <span>datos</span> del men&uacute;</h2>
+            <h2 class="section-title">Explora los <span>datos</span> del sistema</h2>
             <p class="section-sub mx-auto">
-                Precios corregidos y stock actualizado de todos los platos registrados en el sistema.
+                Precios corregidos, stock actualizado y recetas de todos los platos registrados.
             </p>
             <div class="data-filter">
-                <input type="text" id="dataSearch" placeholder="&#128269; Buscar plato...">
+                <div style="display:flex;gap:8px;background:var(--cream-dark);border-radius:50px;padding:4px;">
+                    <button class="btn toggle-btn active" data-view="menu" onclick="switchView('menu')" style="padding:8px 20px;border-radius:50px;font-size:0.85em;background:var(--white);color:var(--dark);box-shadow:none;border:none;cursor:pointer;font-weight:600;">&#127860; Men&uacute;</button>
+                    <button class="btn toggle-btn" data-view="recipe" onclick="switchView('recipe')" style="padding:8px 20px;border-radius:50px;font-size:0.85em;background:transparent;color:var(--text-light);box-shadow:none;border:none;cursor:pointer;font-weight:500;">&#128221; Recetas</button>
+                </div>
+                <input type="text" id="dataSearch" placeholder="&#128269; Buscar...">
                 <select id="dataCategory">
                     <option value="">Todas las categor&iacute;as</option>
                 </select>
-                <span id="dataCount" style="font-size:0.85em;color:var(--text-light);"></span>
+                <span id="dataCount" style="font-size:0.85em;color:var(--text-light);white-space:nowrap;"></span>
             </div>
-            <div class="data-section">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Plato</th>
-                            <th>Categor&iacute;a</th>
-                            <th>Costo total</th>
-                            <th>Precio venta</th>
-                            <th>Peso (g)</th>
-                            <th>Calor&iacute;as</th>
-                            <th>Estado</th>
-                        </tr>
-                    </thead>
+            <div class="data-section" id="dataSection">
+                <table class="data-table" id="dataTable">
+                    <thead id="dataHead"></thead>
                     <tbody id="dataBody">
                         <tr>
                             <td colspan="7">
@@ -915,36 +909,75 @@
     </div>
 
     <script>
-        // Data fetching
+        let currentView = 'menu';
         let allData = [];
         const CATEGORY_MAP = {
             'Lunes': 'Lunes', 'Martes': 'Martes', 'Miercoles': 'Mi\u00e9rcoles',
             'Jueves': 'Jueves', 'Viernes': 'Viernes', 'Sabado': 'S\u00e1bado',
             'General': 'General'
         };
+        const MENU_COLS = ['Plato', 'Categor\u00eda', 'Costo total', 'Precio venta', 'Peso (g)', 'Calor\u00edas', 'Estado'];
+        const RECIPE_COLS = ['ID', 'Plato ID', 'Ingrediente', 'Cantidad (g)', 'Costo unit.'];
+
+        function switchView(view) {
+            currentView = view;
+            document.querySelectorAll('.toggle-btn').forEach(b => {
+                const isActive = b.dataset.view === view;
+                b.style.background = isActive ? 'var(--white)' : 'transparent';
+                b.style.color = isActive ? 'var(--dark)' : 'var(--text-light)';
+                b.style.fontWeight = isActive ? '600' : '500';
+            });
+            document.getElementById('dataSectionTitle').textContent =
+                view === 'menu' ? 'Datos del men\u00fa' : 'Recetas del men\u00fa';
+            loadData();
+        }
 
         async function loadData() {
             const body = document.getElementById('dataBody');
+            const head = document.getElementById('dataHead');
+            const stats = document.getElementById('dataStats');
+            const catEl = document.getElementById('dataCategory');
+
             try {
-                const res = await fetch('/api/menu');
-                if (!res.ok) {
-                    body.innerHTML = `<tr><td colspan="7">
-                        <div class="data-error">
-                            <i class="fas fa-lock" style="font-size:2em;display:block;margin-bottom:12px;"></i>
-                            <p>Debes <a href="/login">iniciar sesi&oacute;n</a> para ver los datos.</p>
-                        </div>
-                    </td></tr>`;
-                    return;
+                const url = currentView === 'menu' ? '/api/menu' : '/api/recipe-items';
+                const res = await fetch(url);
+                if (!res.ok) throw new Error('auth');
+
+                const json = await res.json();
+                allData = currentView === 'menu' ? json : (json.items || []);
+
+                // Build header
+                const cols = currentView === 'menu' ? MENU_COLS : RECIPE_COLS;
+                head.innerHTML = '<tr>' + cols.map(c => '<th>' + c + '</th>').join('') + '</tr>';
+
+                // Populate category filter for menu view
+                if (currentView === 'menu') {
+                    const current = catEl.value;
+                    catEl.innerHTML = '<option value="">Todas las categor\u00edas</option>';
+                    const cats = [...new Set(allData.map(d => d.category).filter(Boolean))];
+                    cats.sort().forEach(c => {
+                        const opt = document.createElement('option');
+                        opt.value = c;
+                        opt.textContent = c;
+                        if (c === current) opt.selected = true;
+                        catEl.appendChild(opt);
+                    });
+                    catEl.style.display = '';
+                } else {
+                    catEl.style.display = 'none';
                 }
-                allData = await res.json();
+
                 renderData();
-            } catch {
-                body.innerHTML = `<tr><td colspan="7">
+            } catch (e) {
+                const cols = MENU_COLS;
+                head.innerHTML = '<tr>' + cols.map(c => '<th>' + c + '</th>').join('') + '</tr>';
+                body.innerHTML = `<tr><td colspan="${cols.length}">
                     <div class="data-error">
-                        <i class="fas fa-exclamation-triangle" style="font-size:2em;display:block;margin-bottom:12px;"></i>
-                        <p>Error al cargar los datos. <a href="/login">Inicia sesi&oacute;n</a> e intenta de nuevo.</p>
+                        <i class="fas fa-lock" style="font-size:2em;display:block;margin-bottom:12px;"></i>
+                        <p>Debes <a href="/login">iniciar sesi&oacute;n</a> para ver los datos.</p>
                     </div>
                 </td></tr>`;
+                stats.textContent = '';
             }
         }
 
@@ -955,51 +988,56 @@
             const stats = document.getElementById('dataStats');
 
             let filtered = allData.filter(d => {
-                const matchSearch = d.dish_name.toLowerCase().includes(search);
-                const matchCat = !cat || d.category === cat;
+                const name = currentView === 'menu' ? d.dish_name : d.ingredient_name;
+                const matchSearch = (name || '').toLowerCase().includes(search);
+                const matchCat = currentView !== 'menu' || !cat || d.category === cat;
                 return matchSearch && matchCat;
             });
 
-            stats.textContent = `${filtered.length} de ${allData.length} platos`;
+            const label = currentView === 'menu' ? 'platos' : 'ingredientes';
+            stats.textContent = `${filtered.length} de ${allData.length} ${label}`;
 
             if (!filtered.length) {
-                body.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-light);">
+                const cols = currentView === 'menu' ? MENU_COLS : RECIPE_COLS;
+                body.innerHTML = `<tr><td colspan="${cols.length}" style="text-align:center;padding:40px;color:var(--text-light);">
                     <i class="fas fa-search" style="font-size:1.5em;display:block;margin-bottom:8px;"></i>
-                    No se encontraron platos
+                    No se encontraron ${label}
                 </td></tr>`;
                 return;
             }
 
             let html = '';
-            filtered.forEach(d => {
-                const cost = parseFloat(d.cost_total || 0).toLocaleString('es-CO', {minimumFractionDigits: 0});
-                const price = parseFloat(d.sale_price || 0).toLocaleString('es-CO', {minimumFractionDigits: 0});
-                html += `<tr>
-                    <td><strong>${d.dish_name}</strong></td>
-                    <td><span class="category-tag">${d.category || '-'}</span></td>
-                    <td class="price">$${cost}</td>
-                    <td class="price">$${price}</td>
-                    <td>${d.portion_weight_g || '-'}</td>
-                    <td>${d.calories ? Math.round(d.calories) : '-'}</td>
-                    <td><span class="status-active">${d.status === 'activo' ? 'Activo' : d.status || '-'}</span></td>
-                </tr>`;
-            });
+            if (currentView === 'menu') {
+                filtered.forEach(d => {
+                    const cost = parseFloat(d.cost_total || 0).toLocaleString('es-CO', {minimumFractionDigits: 0});
+                    const price = parseFloat(d.sale_price || 0).toLocaleString('es-CO', {minimumFractionDigits: 0});
+                    html += `<tr>
+                        <td><strong>${d.dish_name}</strong></td>
+                        <td><span class="category-tag">${d.category || '-'}</span></td>
+                        <td class="price">$${cost}</td>
+                        <td class="price">$${price}</td>
+                        <td>${d.portion_weight_g || '-'}</td>
+                        <td>${d.calories ? Math.round(d.calories) : '-'}</td>
+                        <td><span class="status-active">${d.status === 'activo' ? 'Activo' : d.status || '-'}</span></td>
+                    </tr>`;
+                });
+            } else {
+                filtered.forEach(d => {
+                    const cost = parseFloat(d.unit_cost || 0).toLocaleString('es-CO', {minimumFractionDigits: 0});
+                    html += `<tr>
+                        <td>${d.id}</td>
+                        <td>${d.dish_id}</td>
+                        <td><strong>${d.ingredient_name}</strong></td>
+                        <td>${d.quantity_grams ? d.quantity_grams.toLocaleString('es-CO') : '-'}</td>
+                        <td class="price">$${cost}</td>
+                    </tr>`;
+                });
+            }
             body.innerHTML = html;
         }
 
-        function initFilters() {
-            const catEl = document.getElementById('dataCategory');
-            Object.values(CATEGORY_MAP).forEach(c => {
-                const opt = document.createElement('option');
-                opt.value = c;
-                opt.textContent = c;
-                catEl.appendChild(opt);
-            });
-            document.getElementById('dataSearch').addEventListener('input', renderData);
-            document.getElementById('dataCategory').addEventListener('change', renderData);
-        }
-
-        initFilters();
+        document.getElementById('dataSearch').addEventListener('input', renderData);
+        document.getElementById('dataCategory').addEventListener('change', renderData);
         loadData();
 
         // Smooth scroll
