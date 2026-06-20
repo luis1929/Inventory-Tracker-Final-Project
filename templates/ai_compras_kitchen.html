@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI COMPRAS KITCHEN - Programa tus compras según demanda</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+        :root {
+            --primary: #c0392b;
+            --primary-dark: #922b21;
+            --primary-light: #e74c3c;
+            --secondary: #d4a353;
+            --secondary-light: #f0d39c;
+            --accent: #e67e22;
+            --dark: #2c1810;
+            --dark-brown: #4a2c1a;
+            --warm-brown: #6b4226;
+            --cream: #fdf8f0;
+            --cream-dark: #f5e6cc;
+            --text: #3d2b1f;
+            --text-light: #7a6b5d;
+            --white: #ffffff;
+            --shadow: 0 4px 20px rgba(44, 24, 16, 0.12);
+            --shadow-hover: 0 8px 32px rgba(44, 24, 16, 0.2);
+            --radius: 16px;
+            --radius-sm: 8px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--cream);
+            color: var(--text);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* ── Navbar ── */
+        .navbar {
+            background: linear-gradient(135deg, var(--dark) 0%, var(--dark-brown) 100%);
+            padding: 0 24px;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.3);
+        }
+        .nav-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 64px;
+        }
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            color: var(--cream);
+            font-family: 'Playfair Display', serif;
+            font-size: 1.4em;
+            font-weight: 700;
+        }
+        .nav-brand i { color: var(--secondary); font-size: 1.2em; }
+        .nav-brand span { color: var(--secondary); }
+        .nav-links {
+            display: flex;
+            gap: 4px;
+            list-style: none;
+            align-items: center;
+        }
+        .nav-links a {
+            color: var(--cream-dark);
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: var(--radius-sm);
+            font-size: 0.9em;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        .nav-links a:hover {
+            background: rgba(212, 163, 83, 0.15);
+            color: var(--secondary-light);
+        }
+        .nav-links .btn-nav {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            padding: 8px 20px;
+            border-radius: 50px;
+            font-weight: 600;
+        }
+        .nav-links .btn-nav:hover {
+            background: linear-gradient(135deg, var(--primary-light), var(--primary));
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(192, 57, 43, 0.4);
+        }
+
+        /* ── Hero ── */
+        .hero {
+            min-height: 85vh;
+            display: flex;
+            align-items: center;
+            background: linear-gradient(135deg, var(--dark) 0%, #1a1a2e 40%, #16213e 100%);
+            position: relative;
+            overflow: hidden;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(circle at 20% 80%, rgba(212, 163, 83, 0.12) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(192, 57, 43, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 50% 50%, rgba(212, 163, 83, 0.05) 0%, transparent 70%);
+        }
+        .hero::after {
+            content: '';
+            position: absolute;
+            right: -5%;
+            top: 10%;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(212, 163, 83, 0.06) 0%, transparent 70%);
+            border-radius: 50%;
+        }
+        .hero-inner {
+            position: relative;
+            z-index: 1;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 24px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 60px;
+            align-items: center;
+            width: 100%;
+        }
+        .hero-content { max-width: 560px; }
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(212, 163, 83, 0.15);
+            color: var(--secondary-light);
+            padding: 8px 18px;
+            border-radius: 50px;
+            font-size: 0.85em;
+            font-weight: 500;
+            margin-bottom: 24px;
+            border: 1px solid rgba(212, 163, 83, 0.25);
+        }
+        .hero h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 3.5em;
+            color: var(--white);
+            margin-bottom: 20px;
+            line-height: 1.15;
+        }
+        .hero h1 span { color: var(--secondary); }
+        .hero p {
+            font-size: 1.15em;
+            color: rgba(245, 230, 204, 0.75);
+            margin-bottom: 36px;
+            line-height: 1.7;
+        }
+        .hero-buttons { display: flex; gap: 16px; flex-wrap: wrap; }
+        .btn {
+            padding: 14px 32px;
+            font-size: 1em;
+            font-weight: 600;
+            border-radius: 50px;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.3s;
+            cursor: pointer;
+            border: none;
+            font-family: 'Inter', sans-serif;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            box-shadow: 0 4px 20px rgba(192,57,43,0.3);
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(192,57,43,0.4);
+        }
+        .btn-secondary {
+            background: rgba(255,255,255,0.08);
+            color: white;
+            border: 2px solid rgba(255,255,255,0.15);
+        }
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.15);
+            border-color: rgba(255,255,255,0.3);
+        }
+        .btn-gold {
+            background: linear-gradient(135deg, var(--secondary), #b8893a);
+            color: var(--dark);
+            box-shadow: 0 4px 20px rgba(212, 163, 83, 0.3);
+        }
+        .btn-gold:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(212, 163, 83, 0.4);
+        }
+        .hero-visual {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .hero-visual img { max-width: 100%; }
+        .hero-graphic {
+            width: 100%;
+            max-width: 480px;
+            aspect-ratio: 1;
+            position: relative;
+        }
+        .graphic-ring {
+            position: absolute;
+            border-radius: 50%;
+            border: 2px solid rgba(212, 163, 83, 0.15);
+            animation: pulse 4s ease-in-out infinite;
+        }
+        .graphic-ring:nth-child(1) { width: 100%; height: 100%; top: 0; left: 0; animation-delay: 0s; }
+        .graphic-ring:nth-child(2) { width: 80%; height: 80%; top: 10%; left: 10%; animation-delay: 1s; border-color: rgba(192, 57, 43, 0.15); }
+        .graphic-ring:nth-child(3) { width: 60%; height: 60%; top: 20%; left: 20%; animation-delay: 2s; border-color: rgba(212, 163, 83, 0.2); }
+        .graphic-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 120px;
+            height: 120px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3em;
+            box-shadow: 0 0 60px rgba(192, 57, 43, 0.3);
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.7; }
+        }
+        .hero-stats {
+            display: flex;
+            gap: 32px;
+            margin-top: 40px;
+        }
+        .hero-stat h3 {
+            font-family: 'Playfair Display', serif;
+            font-size: 2em;
+            color: var(--secondary);
+            line-height: 1;
+        }
+        .hero-stat p {
+            font-size: 0.85em;
+            color: rgba(245, 230, 204, 0.6);
+            margin: 4px 0 0;
+        }
+
+        /* ── Secciones generales ── */
+        section { padding: 80px 24px; }
+        .section-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .section-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(212, 163, 83, 0.12);
+            color: var(--secondary);
+            padding: 6px 16px;
+            border-radius: 50px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin-bottom: 16px;
+            border: 1px solid rgba(212, 163, 83, 0.2);
+        }
+        .section-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 2.4em;
+            color: var(--dark);
+            margin-bottom: 16px;
+            line-height: 1.2;
+        }
+        .section-title span { color: var(--primary); }
+        .section-sub {
+            color: var(--text-light);
+            font-size: 1.1em;
+            max-width: 640px;
+            line-height: 1.7;
+            margin-bottom: 48px;
+        }
+        .text-center { text-align: center; }
+        .mx-auto { margin-left: auto; margin-right: auto; }
+
+        /* ── Cómo funciona ── */
+        .steps-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 24px;
+        }
+        .step-card {
+            background: var(--white);
+            border-radius: var(--radius);
+            padding: 32px 24px;
+            text-align: center;
+            box-shadow: var(--shadow);
+            border: 1px solid rgba(212, 163, 83, 0.1);
+            position: relative;
+            transition: all 0.3s;
+        }
+        .step-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-hover);
+        }
+        .step-number {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.2em;
+            margin: 0 auto 16px;
+        }
+        .step-card h3 {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.2em;
+            margin-bottom: 8px;
+            color: var(--dark);
+        }
+        .step-card p {
+            font-size: 0.9em;
+            color: var(--text-light);
+            line-height: 1.5;
+        }
+
+        /* ── Productos / Planes ── */
+        .plans-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+        }
+        .plan-card {
+            background: var(--white);
+            border-radius: var(--radius);
+            padding: 36px 28px;
+            box-shadow: var(--shadow);
+            border: 1px solid rgba(212, 163, 83, 0.1);
+            transition: all 0.3s;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+        .plan-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-hover);
+        }
+        .plan-card.featured {
+            border: 2px solid var(--secondary);
+            transform: scale(1.03);
+        }
+        .plan-card.featured:hover { transform: scale(1.03) translateY(-4px); }
+        .plan-badge {
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, var(--secondary), #b8893a);
+            color: var(--dark);
+            padding: 4px 16px;
+            border-radius: 50px;
+            font-size: 0.75em;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .plan-icon {
+            font-size: 2.5em;
+            margin-bottom: 16px;
+        }
+        .plan-card h3 {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.4em;
+            color: var(--dark);
+            margin-bottom: 4px;
+        }
+        .plan-desc {
+            color: var(--text-light);
+            font-size: 0.9em;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+        .plan-price {
+            font-family: 'Playfair Display', serif;
+            font-size: 2.2em;
+            color: var(--primary);
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .plan-price span {
+            font-size: 0.5em;
+            color: var(--text-light);
+            font-family: 'Inter', sans-serif;
+            font-weight: 400;
+        }
+        .plan-features {
+            list-style: none;
+            margin: 20px 0;
+            flex: 1;
+        }
+        .plan-features li {
+            padding: 8px 0;
+            font-size: 0.9em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid var(--cream-dark);
+        }
+        .plan-features li:last-child { border-bottom: none; }
+        .plan-features li i {
+            color: var(--secondary);
+            width: 18px;
+        }
+        .plan-card .btn {
+            margin-top: auto;
+            justify-content: center;
+        }
+
+        /* ── Cobertura ── */
+        .coverage-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+        .coverage-card {
+            background: var(--white);
+            border-radius: var(--radius-sm);
+            padding: 20px;
+            text-align: center;
+            box-shadow: var(--shadow);
+            border: 1px solid rgba(212, 163, 83, 0.1);
+            transition: all 0.3s;
+        }
+        .coverage-card:hover { transform: translateY(-2px); }
+        .coverage-card i {
+            font-size: 2em;
+            color: var(--secondary);
+            margin-bottom: 8px;
+        }
+        .coverage-card h4 {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.1em;
+            color: var(--dark);
+            margin-bottom: 4px;
+        }
+        .coverage-card p {
+            font-size: 0.85em;
+            color: var(--text-light);
+        }
+
+        /* ── Diferenciales ── */
+        .diffs-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+        }
+        .diff-card {
+            text-align: center;
+            padding: 32px 20px;
+            background: var(--white);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            border: 1px solid rgba(212, 163, 83, 0.1);
+            transition: all 0.3s;
+        }
+        .diff-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-hover);
+        }
+        .diff-card .icon {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, rgba(212, 163, 83, 0.15), rgba(212, 163, 83, 0.05));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8em;
+            margin: 0 auto 16px;
+        }
+        .diff-card h3 {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.15em;
+            margin-bottom: 8px;
+            color: var(--dark);
+        }
+        .diff-card p {
+            font-size: 0.9em;
+            color: var(--text-light);
+            line-height: 1.5;
+        }
+
+        /* ── CTA ── */
+        .cta {
+            background: linear-gradient(135deg, var(--dark) 0%, #1a1a2e 50%, #16213e 100%);
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .cta::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(circle at 30% 50%, rgba(212, 163, 83, 0.08) 0%, transparent 50%),
+                radial-gradient(circle at 70% 50%, rgba(192, 57, 43, 0.06) 0%, transparent 50%);
+        }
+        .cta-inner {
+            position: relative;
+            z-index: 1;
+            max-width: 640px;
+            margin: 0 auto;
+        }
+        .cta h2 {
+            font-family: 'Playfair Display', serif;
+            font-size: 2.6em;
+            color: var(--white);
+            margin-bottom: 16px;
+        }
+        .cta h2 span { color: var(--secondary); }
+        .cta p {
+            font-size: 1.1em;
+            color: rgba(245, 230, 204, 0.7);
+            margin-bottom: 32px;
+        }
+
+        /* ── Footer ── */
+        .footer {
+            background: var(--dark);
+            color: rgba(245, 230, 204, 0.5);
+            text-align: center;
+            padding: 32px 24px;
+            font-size: 0.85em;
+        }
+        .footer span { color: var(--secondary); }
+
+        /* ── Responsive ── */
+        @media (max-width: 1024px) {
+            .hero-inner { grid-template-columns: 1fr; gap: 40px; text-align: center; }
+            .hero-content { max-width: 100%; }
+            .hero-buttons, .hero-stats { justify-content: center; }
+            .hero-visual { display: none; }
+            .steps-grid { grid-template-columns: repeat(2, 1fr); }
+            .plans-grid { grid-template-columns: 1fr; max-width: 480px; margin: 0 auto; }
+            .plan-card.featured { transform: none; }
+            .plan-card.featured:hover { transform: translateY(-4px); }
+            .diffs-grid { grid-template-columns: repeat(2, 1fr); }
+            .coverage-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 2.4em; }
+            .section-title { font-size: 1.8em; }
+            .nav-links a { font-size: 0.8em; padding: 8px 10px; }
+            .nav-links a span { display: none; }
+            section { padding: 60px 16px; }
+            .steps-grid, .diffs-grid { grid-template-columns: 1fr; }
+            .coverage-grid { grid-template-columns: 1fr; }
+            .hero-stats { flex-direction: column; gap: 16px; align-items: center; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="nav-inner">
+            <a href="/ai-compras-kitchen" class="nav-brand">
+                <i class="fas fa-robot"></i> AI <span>Compras</span> Kitchen
+            </a>
+            <ul class="nav-links">
+                <li><a href="#como-funciona"><span>Cómo funciona</span></a></li>
+                <li><a href="#planes"><span>Planes</span></a></li>
+                <li><a href="#cobertura"><span>Cobertura</span></a></li>
+                <li><a href="/login" class="btn-nav"><i class="fas fa-user"></i> <span>Iniciar sesión</span></a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="hero">
+        <div class="hero-inner">
+            <div class="hero-content">
+                <div class="hero-badge">
+                    <i class="fas fa-bolt"></i> IA + Automatización
+                </div>
+                <h1>
+                    Programa tus <span>compras</span><br>
+                    según la demanda real
+                </h1>
+                <p>
+                    AI Compras Kitchen analiza tu inventario, historial de ventas y proyecciones para generar órdenes de compra inteligentes. Olvídate del desabastecimiento y el desperdicio.
+                </p>
+                <div class="hero-buttons">
+                    <a href="#planes" class="btn btn-primary">
+                        <i class="fas fa-rocket"></i> Ver planes
+                    </a>
+                    <a href="#como-funciona" class="btn btn-secondary">
+                        <i class="fas fa-play-circle"></i> Cómo funciona
+                    </a>
+                </div>
+                <div class="hero-stats">
+                    <div class="hero-stat">
+                        <h3>98%</h3>
+                        <p>Precisión en proyecciones</p>
+                    </div>
+                    <div class="hero-stat">
+                        <h3>3x</h3>
+                        <p>Menos desperdicio</p>
+                    </div>
+                    <div class="hero-stat">
+                        <h3>40%</h3>
+                        <p>Optimización de costos</p>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="hero-graphic">
+                    <div class="graphic-ring"></div>
+                    <div class="graphic-ring"></div>
+                    <div class="graphic-ring"></div>
+                    <div class="graphic-center">
+                        <i class="fas fa-cart-shopping"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Cómo funciona -->
+    <section id="como-funciona">
+        <div class="section-inner text-center">
+            <div class="section-tag mx-auto" style="justify-content:center;">
+                <i class="fas fa-gears"></i> Tu compra inteligente en 4 pasos
+            </div>
+            <h2 class="section-title">Así de <span>fácil</span> funciona</h2>
+            <p class="section-sub mx-auto">
+                Conectamos con tu inventario, analizamos la demanda y generamos órdenes de compra listas para enviar a tus proveedores.
+            </p>
+            <div class="steps-grid">
+                <div class="step-card">
+                    <div class="step-number">1</div>
+                    <h3>Conecta tu inventario</h3>
+                    <p>Sincroniza tus ingredientes y stock actual desde KitchenMaster o cualquier sistema.</p>
+                </div>
+                <div class="step-card">
+                    <div class="step-number">2</div>
+                    <h3>Analizamos la demanda</h3>
+                    <p>Nuestra IA estudia tus ventas históricas, proyecciones y tendencias estacionales.</p>
+                </div>
+                <div class="step-card">
+                    <div class="step-number">3</div>
+                    <h3>Generamos órdenes</h3>
+                    <p>Calculamos cantidades exactas por proveedor y te mostramos la orden lista para revisar.</p>
+                </div>
+                <div class="step-card">
+                    <div class="step-number">4</div>
+                    <h3>Programa y recibe</h3>
+                    <p>Define la frecuencia de entrega y recibe tus insumos justo cuando los necesitas.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Planes -->
+    <section id="planes" style="background: var(--white);">
+        <div class="section-inner text-center">
+            <div class="section-tag mx-auto" style="justify-content:center;">
+                <i class="fas fa-tag"></i> Planes
+            </div>
+            <h2 class="section-title">Elige el plan que <span>necesitas</span></h2>
+            <p class="section-sub mx-auto">
+                Desde el plan básico para cocinas pequeñas hasta el enterprise para cadenas de restaurantes.
+            </p>
+            <div class="plans-grid">
+                <div class="plan-card">
+                    <div class="plan-icon"><i class="fas fa-store"></i></div>
+                    <h3>Básico</h3>
+                    <p class="plan-desc">Para cocinas independientes que inician su transformación digital.</p>
+                    <div class="plan-price">$99 <span>/mes</span></div>
+                    <ul class="plan-features">
+                        <li><i class="fas fa-check"></i> 1 cocina/restaurante</li>
+                        <li><i class="fas fa-check"></i> Órdenes semanales</li>
+                        <li><i class="fas fa-check"></i> Proyecciones básicas</li>
+                        <li><i class="fas fa-check"></i> Soporte por email</li>
+                    </ul>
+                    <a href="#contacto" class="btn btn-primary">Elegir plan</a>
+                </div>
+                <div class="plan-card featured">
+                    <div class="plan-badge">MÁS POPULAR</div>
+                    <div class="plan-icon"><i class="fas fa-robot"></i></div>
+                    <h3>Pro</h3>
+                    <p class="plan-desc">Para restaurantes que quieren optimizar su cadena de suministro.</p>
+                    <div class="plan-price">$199 <span>/mes</span></div>
+                    <ul class="plan-features">
+                        <li><i class="fas fa-check"></i> Hasta 3 cocinas</li>
+                        <li><i class="fas fa-check"></i> Órdenes diarias</li>
+                        <li><i class="fas fa-check"></i> IA predictiva avanzada</li>
+                        <li><i class="fas fa-check"></i> Integración con proveedores</li>
+                        <li><i class="fas fa-check"></i> Soporte prioritario</li>
+                    </ul>
+                    <a href="#contacto" class="btn btn-gold">Elegir plan</a>
+                </div>
+                <div class="plan-card">
+                    <div class="plan-icon"><i class="fas fa-building"></i></div>
+                    <h3>Enterprise</h3>
+                    <p class="plan-desc">Para cadenas y grupos de restaurantes con operaciones complejas.</p>
+                    <div class="plan-price">$499 <span>/mes</span></div>
+                    <ul class="plan-features">
+                        <li><i class="fas fa-check"></i> Cocinas ilimitadas</li>
+                        <li><i class="fas fa-check"></i> API personalizada</li>
+                        <li><i class="fas fa-check"></i> Dashboard centralizado</li>
+                        <li><i class="fas fa-check"></i> Integración ERP</li>
+                        <li><i class="fas fa-check"></i> Gerente de cuenta dedicado</li>
+                    </ul>
+                    <a href="#contacto" class="btn btn-primary">Elegir plan</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Diferenciales -->
+    <section id="diferenciales">
+        <div class="section-inner text-center">
+            <div class="section-tag mx-auto" style="justify-content:center;">
+                <i class="fas fa-star"></i> ¿Por qué AI Compras Kitchen?
+            </div>
+            <h2 class="section-title">Lo que nos <span>diferencia</span></h2>
+            <p class="section-sub mx-auto">
+                No solo automatizamos: entendemos tu cocina, tus recetas y tu flujo de trabajo.
+            </p>
+            <div class="diffs-grid">
+                <div class="diff-card">
+                    <div class="icon"><i class="fas fa-brain"></i></div>
+                    <h3>IA entrenada en cocina</h3>
+                    <p>Nuestros modelos están entrenados específicamente para patrones de consumo gastronómico, no genéricos.</p>
+                </div>
+                <div class="diff-card">
+                    <div class="icon"><i class="fas fa-link"></i></div>
+                    <h3>Integración total</h3>
+                    <p>Se conecta con tu inventario actual, POS, y puede enviar órdenes directo a tus proveedores.</p>
+                </div>
+                <div class="diff-card">
+                    <div class="icon"><i class="fas fa-chart-line"></i></div>
+                    <h3>Reduce desperdicio</h3>
+                    <p>Compra exactamente lo que vas a usar. Nuestros clientes reducen el desperdicio hasta en un 60%.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Cobertura -->
+    <section id="cobertura" style="background: var(--white);">
+        <div class="section-inner text-center">
+            <div class="section-tag mx-auto" style="justify-content:center;">
+                <i class="fas fa-location-dot"></i> Cobertura
+            </div>
+            <h2 class="section-title">Estamos donde <span>nos necesitas</span></h2>
+            <p class="section-sub mx-auto">
+                Dando servicio a cocinas y restaurantes en las principales ciudades de Colombia.
+            </p>
+            <div class="coverage-grid">
+                <div class="coverage-card">
+                    <i class="fas fa-city"></i>
+                    <h4>Barranquilla</h4>
+                    <p>Sede principal</p>
+                </div>
+                <div class="coverage-card">
+                    <i class="fas fa-umbrella-beach"></i>
+                    <h4>Puerto Colombia</h4>
+                    <p>Cobertura total</p>
+                </div>
+                <div class="coverage-card">
+                    <i class="fas fa-building"></i>
+                    <h4>Soledad</h4>
+                    <p>Cobertura total</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta">
+        <div class="cta-inner">
+            <h2>¿Listo para optimizar tus <span>compras</span>?</h2>
+            <p>Programa una demo gratuita y descubre cómo AI Compras Kitchen puede transformar tu cocina.</p>
+            <div class="hero-buttons" style="justify-content:center;">
+                <a href="/login" class="btn btn-primary">
+                    <i class="fas fa-rocket"></i> Solicitar demo gratuita
+                </a>
+                <a href="mailto:info@aicompraskitchen.com" class="btn btn-secondary">
+                    <i class="fas fa-envelope"></i> Escríbenos
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <div class="footer">
+        AI Compras Kitchen &mdash; Hecho con <span>&#10084;</span> para cocineros inteligentes
+    </div>
+
+    <!-- Smooth scroll -->
+    <script>
+        document.querySelectorAll('a[href^="#"]').forEach(a => {
+            a.addEventListener('click', e => {
+                e.preventDefault();
+                const el = document.querySelector(a.getAttribute('href'));
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+        });
+    </script>
+
+</body>
+</html>

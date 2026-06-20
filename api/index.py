@@ -294,6 +294,11 @@ def index():
     return render_template('index.html', user=session['user'])
 
 
+@app.route('/ai-compras-kitchen')
+def ai_compras_kitchen():
+    return render_template('ai_compras_kitchen.html')
+
+
 @app.route('/ingredients')
 @login_required
 def ingredients_page():
