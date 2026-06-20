@@ -207,7 +207,10 @@
 
             try {
                 const res = await fetch('/api/table-data/' + tableName);
-                if (!res.ok) throw new Error('auth');
+                if (!res.ok) {
+                    const errText = await res.text().catch(() => 'Error desconocido');
+                    throw new Error(errText);
+                }
                 tableAllData = await res.json();
 
                 if (!tableAllData.length) {
@@ -227,8 +230,8 @@
                 head.innerHTML = '';
                 body.innerHTML = `<tr><td colspan="1">
                     <div class="data-error">
-                        <i class="fas fa-lock" style="font-size:2em;display:block;margin-bottom:12px;"></i>
-                        <p>Debes <a href="/login">iniciar sesi&oacute;n</a> para ver los datos.</p>
+                        <i class="fas fa-exclamation-triangle" style="font-size:2em;display:block;margin-bottom:12px;"></i>
+                        <p>Error al cargar datos: ${e.message}</p>
                     </div>
                 </td></tr>`;
                 stats.textContent = '';

@@ -1848,7 +1848,7 @@ def get_table_data(table_name):
     supabase_table = ALLOWED_TABLES.get(table_name)
     if not supabase_table:
         return jsonify({'error': 'Tabla no permitida'}), 403
-    r = api_req('GET', supabase_table, params={'order': 'id.asc'})
+    r = api_req('GET', supabase_table, params={'select': '*'})
     if r.status_code != 200:
         return jsonify({'error': r.text}), r.status_code
     return jsonify(r.json())
