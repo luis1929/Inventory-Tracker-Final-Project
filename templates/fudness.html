@@ -82,8 +82,7 @@
 
         <div class="sync-panel">
             <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
-                <button class="btn" onclick="syncProducts()">&#128260; Sincronizar</button>
-                <button class="btn" onclick="syncDetails()">&#128203; Detalles</button>
+                <button class="btn" onclick="syncAll()">&#128260; Sincronizar Todo</button>
                 <input type="text" id="searchFudness" placeholder="&#128269; Buscar producto..." style="flex:1;min-width:200px;padding:8px 14px;border:2px solid var(--cream-dark);border-radius:var(--radius-sm);font-size:0.9em;">
                 <span id="catalogStats" style="font-size:0.9em;color:var(--text-light);"></span>
             </div>
@@ -111,63 +110,17 @@
 
     <script>
         let allProducts = [];
-        let config = JSON.parse(sessionStorage.getItem('fudnessConfig') || '{}');
 
-        function showMessage(msg, type) {
-            const div = document.getElementById('configMessage');
-            div.textContent = msg;
-            div.className = 'message ' + type;
-            setTimeout(() => div.textContent = '', 4000);
-        }
-
-        function switchTab(tab, btn) {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            btn.classList.add('active');
-            document.getElementById('tab-' + tab).classList.add('active');
-            if (tab === 'orders') loadOrders();
-        }
-
-        function saveConfig() {
-            const key = document.getElementById('fudnessConsumerKey').value.trim();
-            const secret = document.getElementById('fudnessConsumerSecret').value.trim();
-            if (!key || !secret) {
-                showMessage('Ambos campos requeridos', 'error');
-                return;
-            }
-            config = { consumer_key: key, consumer_secret: secret };
-            sessionStorage.setItem('fudnessConfig', JSON.stringify(config));
-            showMessage('Credenciales guardadas en sesión', 'success');
-            document.getElementById('orderConfigAlert').style.display = 'none';
-        }
-
-        function loadConfig() {
-            if (config.consumer_key) {
-                document.getElementById('fudnessConsumerKey').value = config.consumer_key;
-                document.getElementById('fudnessConsumerSecret').value = config.consumer_secret;
-                document.getElementById('orderConfigAlert').style.display = 'none';
-            }
-        }
-
-        async function syncProducts() {
+        async function syncAll() {
             const btn = event.target;
             btn.disabled = true;
             btn.textContent = 'Sincronizando...';
-            const res = await fetch('/api/fudness/sync/products', { method: 'POST' });
-            const data = await res.json();
+            let res = await fetch('/api/fudness/sync/products', { method: 'POST' });
+            if (res.ok) {
+                res = await fetch('/api/fudness/sync/details', { method: 'POST' });
+            }
             btn.disabled = false;
-            btn.textContent = '&#128260; Sincronizar';
-            if (res.ok) loadCatalog();
-        }
-
-        async function syncDetails() {
-            const btn = event.target;
-            btn.disabled = true;
-            btn.textContent = 'Sincronizando...';
-            const res = await fetch('/api/fudness/sync/details', { method: 'POST' });
-            const data = await res.json();
-            btn.disabled = false;
-            btn.textContent = '&#128203; Detalles';
+            btn.textContent = '&#128260; Sincronizar Todo';
             if (res.ok) loadCatalog();
         }
 
@@ -193,8 +146,8 @@
 
             let html = '';
             data.forEach(p => {
-                const tags = (p.tags || '').replace(/[{}"]/g, '').split(',').filter(Boolean).join(', ');
-                const cats = (p.categories || '').replace(/[{}"]/g, '').split(',').filter(Boolean).join(', ');
+                const tags = Array.isArray(p.tags) ? p.tags.join(', ') : (p.tags || '').replace(/[{}"]/g, '').split(',').filter(Boolean).join(', ');
+                const cats = Array.isArray(p.categories) ? p.categories.join(', ') : (p.categories || '').replace(/[{}"]/g, '').split(',').filter(Boolean).join(', ');
                 const inStock = p.in_stock;
                 const price = parseFloat(p.price || 0).toLocaleString('es-CO');
                 const desc = (p.description || '').replace(/<[^>]*>/g, '').substring(0, 120);
