@@ -742,8 +742,8 @@
             </p>
             <div class="data-filter">
                 <div style="display:flex;gap:8px;background:var(--cream-dark);border-radius:50px;padding:4px;">
-                    <button class="btn toggle-btn active" data-view="menu" onclick="switchView('menu')" style="padding:8px 20px;border-radius:50px;font-size:0.85em;background:var(--white);color:var(--dark);box-shadow:none;border:none;cursor:pointer;font-weight:600;">&#127860; Men&uacute;</button>
-                    <button class="btn toggle-btn" data-view="recipe" onclick="switchView('recipe')" style="padding:8px 20px;border-radius:50px;font-size:0.85em;background:transparent;color:var(--text-light);box-shadow:none;border:none;cursor:pointer;font-weight:500;">&#128221; Recetas</button>
+                    <button class="btn toggle-btn" data-view="menu" onclick="switchView('menu')" style="padding:8px 20px;border-radius:50px;font-size:0.85em;background:transparent;color:var(--text-light);box-shadow:none;border:none;cursor:pointer;font-weight:500;">&#127860; Men&uacute;</button>
+                    <button class="btn toggle-btn active" data-view="recipe" onclick="switchView('recipe')" style="padding:8px 20px;border-radius:50px;font-size:0.85em;background:var(--white);color:var(--dark);box-shadow:none;border:none;cursor:pointer;font-weight:600;">&#128221; Recetas</button>
                 </div>
                 <input type="text" id="dataSearch" placeholder="&#128269; Buscar...">
                 <select id="dataCategory">
@@ -909,7 +909,7 @@
     </div>
 
     <script>
-        let currentView = 'menu';
+        let currentView = 'recipe';
         let allData = [];
         const CATEGORY_MAP = {
             'Lunes': 'Lunes', 'Martes': 'Martes', 'Miercoles': 'Mi\u00e9rcoles',
